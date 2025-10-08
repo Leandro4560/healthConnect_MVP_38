@@ -1,0 +1,13 @@
+# Ignorar el archivo de variables de entorno con claves reales
+.env
+
+# Ignorar las carpetas de caché de Python
+__pycache__/
+
+# Ignorar la carpeta del entorno virtual
+venv/
+env/
+
+# Archivos de caché de Google
+*.json
+token.pickle

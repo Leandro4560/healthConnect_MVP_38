@@ -68,3 +68,15 @@ button:focus-visible {
 } */
 
 @import "tailwindcss";
+
+@theme {
+  /*--font-display: "Satoshi", "sans-serif";*/
+  --color-primary-700: #001129;
+  --color-primary-600: #002954;
+  --color-primary-500: #00498c;
+  --color-primary-400: #006bc9;
+  --color-primary-300: #338fff;
+  --color-primary-200: #91b5ff;
+  --color-primary-100: #d0ddff;
+  --color-secondary: #003b7b;
+}

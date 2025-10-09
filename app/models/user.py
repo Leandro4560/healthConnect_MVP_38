@@ -9,7 +9,7 @@ from app.database import Base
 class UserRole(enum.Enum):
     """Define los roles de usuario disponibles en el sistema."""
     PATIENT = "Patient"
-    DOCTOR = "doctot"
+    DOCTOR = "doctor"
     ADMIN = "admin"
 
 class User(Base):

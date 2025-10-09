@@ -6,8 +6,6 @@ from pydantic_settings import BaseSettings
 load_dotenv()
 
 class Settings(BaseSettings):
-   
-   
     SECRET_KEY: str = Field(default=os.getenv("SECRET_KEY", "super_secreto_y_largo_default"))
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

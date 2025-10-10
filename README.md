@@ -1,4 +1,4 @@
-# 💙 HealthConnect: Plataforma Integral de Gestión Médica 💙
+# 💙 Plataforma Integral de Gestión Médica 💙
 
 ![image](https://github.com/mikeismerio/healthconnect/blob/main/img/portada.jpg)
 
@@ -21,7 +21,6 @@ La atención médica moderna enfrenta **retos crecientes**: sistemas fragmentado
 
 El sistema integra:
 - **Gestión de citas** presenciales y virtuales.  
-- **Interoperabilidad con sistemas EHR/FHIR**.  
 - **Teleasistencia** con videollamadas seguras.  
 - **Recordatorios automáticos** y notificaciones.  
 - **Control de roles** para pacientes, médicos y administradores.  
@@ -39,7 +38,6 @@ Diseñar y desarrollar un **portal web integral** que optimice la coordinación 
 - Facilitar el registro y autenticación segura de pacientes y médicos.  
 - Implementar un sistema de gestión de citas con recordatorios automáticos.  
 - Integrar videollamadas para teleconsultas seguras.  
-- Conectar con sistemas EHR mediante estándares **FHIR**.  
 - Incorporar análisis predictivo para reducir cancelaciones y *no-shows*.  
 
 ---
@@ -78,14 +76,6 @@ Diseñar y desarrollar un **portal web integral** que optimice la coordinación 
 - Recordatorios automáticos (correo o SMS).  
 - Teleconsulta con video y chat cifrado.  
 - Integración con sistemas **EHR (FHIR)**.  
-
-#### ✨ *Nice-to-Have*
-- Asignación de citas por prioridad médica.  
-- Módulo de facturación automática.  
-- Panel de gestión de listas de espera.  
-- Análisis predictivo de cancelaciones y *no-shows*.  
-
----
 
 ### 💙 Historias de Usuario 💙
 

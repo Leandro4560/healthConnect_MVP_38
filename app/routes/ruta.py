@@ -3,56 +3,35 @@ from sqlalchemy.orm import Session
 from datetime import timedelta, datetime
 from typing import Annotated, Optional
 
+# Importaciones de módulos locales
 from app.database import get_db
-from app.models.user import User, UserRole
-
-from app.utils.schemas import BaseModel, UserOut, UserCreate, UserLogin, Token, AppointmentCreate 
-from app.utils import security 
+from app.utils import schemas as datos # Esquemas (Pydantic)
+from app.utils import security as validacion_api # Seguridad (JWT, Hashing)
 from app.config import settings
 from app.utils.google_tokens import get_google_auth_flow, exchange_code_for_tokens
-from app.utils.servicios_meet_calendar import create_google_calendar_event 
-from app.excepciones import GoogleCalendarError 
+from app.utils.servicios_meet_calendar import create_google_calendar_event # <-- Servicio de Meet/Calendar
+from app.excepciones import GoogleCalendarError # <-- Usando tu nombre de archivo "excepciones.py"
 from starlette.responses import RedirectResponse
+from app.models.user import User, UserRole
+from app.utils.security import CurrentUserDep # Importa la dependencia de usuario
 
-
+# Crea el router para las rutas de autenticación
 router = APIRouter(
-    prefix="/auth",
     tags=["Autenticación"],
 )
 
+# Dependencia de inyección para la sesión de base de datos
 SessionDep = Annotated[Session, Depends(get_db)]
 
-def get_current_user(db: Session = Depends(get_db), token: str = Header(..., alias="Authorization")):
-   
-    token = token.replace("Bearer ", "")
-    payload = security.decode_access_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido o expirado",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    user_id = payload.get("user_id")
-    db_user = db.query(User).filter(User.id == user_id).first()
-    if db_user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
-    return db_user
 
-CurrentUserDep = Annotated[User, Depends(get_current_user)]
+# --- Rutas de Autenticación Estándar ---
 
-class GoogleAppointmentCreate(BaseModel):
-    
-    patient_email: str
-    start_time: datetime
-    end_time: datetime
-    summary: str = "Consulta Médica Online"
-    description: str = "Videoconsulta agendada por el sistema."
-
-
-
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED) 
-def register_user(user_data: UserCreate, db: SessionDep):
-    
+@router.post("/register", response_model=datos.UserOut, status_code=status.HTTP_201_CREATED)
+def register_user(user_data: datos.UserCreate, db: SessionDep):
+    """
+    Registra un nuevo usuario en el sistema.
+    """
+    # 1. Verificar si el email ya existe
     db_user = db.query(User).filter(User.email == user_data.email).first()
     if db_user:
         raise HTTPException(
@@ -60,8 +39,10 @@ def register_user(user_data: UserCreate, db: SessionDep):
             detail="El email ya está registrado"
         )
 
-    hashed_password = security.get_password_hash(user_data.password)
+    # 2. Hashear la contraseña
+    hashed_password = validacion_api.get_password_hash(user_data.password)
 
+    # 3. Crear el nuevo objeto User del ORM
     new_user = User(
         email=user_data.email,
         hashed_password=hashed_password,
@@ -69,7 +50,7 @@ def register_user(user_data: UserCreate, db: SessionDep):
         role=user_data.role 
     )
 
- 
+    # 4. Guardar en la base de datos
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -77,56 +58,70 @@ def register_user(user_data: UserCreate, db: SessionDep):
     return new_user
 
 
-@router.post("/login", response_model=Token)
-def login_for_access_token(user_data: UserLogin, db: SessionDep): 
-    
+@router.post("/login", response_model=datos.Token)
+def login_for_access_token(user_data: datos.UserLogin, db: SessionDep):
+    """
+    Verifica las credenciales y devuelve un token JWT si son válidas.
+    """
+    # 1. Buscar el usuario por email
     db_user = db.query(User).filter(User.email == user_data.email).first()
     
-    if not db_user or not security.verify_password(user_data.password, db_user.hashed_password):
+    # 2. Verificar existencia y contraseña
+    if not db_user or not validacion_api.verify_password(user_data.password, db_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales de acceso inválidas",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # 3. Crear el token de acceso
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
+    access_token = validacion_api.create_access_token(
         data={"user_id": db_user.id, "role": db_user.role.value},
         expires_delta=access_token_expires
     )
     
+    # 4. Devolver el token
     return {"access_token": access_token}
 
 
+# --- Rutas de Google OAuth (Nuevas) ---
+
 @router.get("/google/login")
 def google_login():
-   
+    """
+    Inicia el flujo de autenticación de Google OAuth 2.0.
+    Redirige al usuario a la página de consentimiento de Google.
+    """
     flow = get_google_auth_flow()
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
+        # Solicita el refresh_token para poder usarlo después
         prompt='consent' 
     )
-   
     return RedirectResponse(authorization_url)
 
 
 @router.get("/google/callback")
 def google_callback(code: str, db: SessionDep):
-    
+    """
+    Maneja la respuesta del servidor de Google (callback).
+    Intercambia el código por tokens y guarda el refresh_token del doctor.
+    """
     try:
-       
+        # 1. Intercambiar el código por tokens de Google
         tokens = exchange_code_for_tokens(code)
         refresh_token = tokens.get('refresh_token')
         google_email = tokens.get('email')
 
-  
-            raise HTTPException(
+        if not refresh_token:
+             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No se pudo obtener el token de refresco (Refresh Token). Reintente, asegurándose de dar todos los permisos."
             )
 
-       
+        # 2. Encontrar el usuario por email
         db_user = db.query(User).filter(User.email == google_email).first()
 
         if not db_user:
@@ -135,9 +130,11 @@ def google_callback(code: str, db: SessionDep):
                 detail=f"Usuario con email {google_email} no encontrado en la base de datos."
             )
 
+        # 3. Guardar el refresh token en la base de datos
         db_user.google_refresh_token = refresh_token
         db.commit()
 
+        # 4. Redirigir a una página de éxito (debe ser una URL de tu frontend)
         return RedirectResponse(
             url="/", 
             status_code=status.HTTP_302_FOUND,
@@ -153,29 +150,42 @@ def google_callback(code: str, db: SessionDep):
             detail="Error al procesar la autenticación de Google."
         )
 
+# --- Ruta de Creación de Citas con Meet (Ejemplo) ---
+
+# Este esquema es solo un ejemplo para la ruta, debe ser movido a app/utils/schemas.py
+class AppointmentCreateExample(datos.BaseModel):
+    patient_email: str
+    start_time: datetime
+    end_time: datetime
+    summary: str = "Consulta Médica Online"
+    description: str = "Videoconsulta agendada por el sistema."
+
 
 @router.post("/appointments/create", status_code=status.HTTP_201_CREATED)
 def create_appointment_with_meet(
-    appointment_data: GoogleAppointmentCreate,
+    appointment_data: AppointmentCreateExample,
     db: SessionDep,
     current_user: CurrentUserDep
 ):
-   
+    """
+    Crea una nueva cita. Si el usuario actual es un Doctor,
+    intenta crear un evento de Google Calendar con un enlace de Meet.
+    """
     if current_user.role != UserRole.DOCTOR:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
             detail="Solo los doctores pueden crear citas de calendario."
         )
 
+    # 1. Verificar si el doctor tiene el token de Google
     if not current_user.google_refresh_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El doctor debe conectar su calendario de Google a través de /auth/google/login primero."
         )
 
-    
+    # 2. Crear el evento de Google Calendar
     try:
-       
         meet_info = create_google_calendar_event(
             doctor=current_user,
             summary=appointment_data.summary,
@@ -185,8 +195,6 @@ def create_appointment_with_meet(
             patient_email=appointment_data.patient_email
         )
         
-      
-
         return {
             "message": "Cita agendada y evento de Google Calendar/Meet creado con éxito.",
             "meet_url": meet_info['meet_url'],

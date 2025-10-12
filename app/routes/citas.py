@@ -86,7 +86,7 @@ def get_my_appointments(
         appointments = db.query(Appointment).filter(
             Appointment.patient_id == current_user.id
         ).all()
-    elif current_user.role == UserRole.DOCTOR
+    elif current_user.role == UserRole.DOCTOR:
         appointments = db.query(Appointment).filter(
             Appointment.doctor_id == current_user.id
         ).all()

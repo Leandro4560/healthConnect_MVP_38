@@ -2,21 +2,21 @@ import enum
 from sqlalchemy import Column, Integer, String, Enum, Boolean, Text
 from sqlalchemy.orm import relationship
 
-
-from app.database import Base 
+# =====================================================================
+# Importación CORREGIDA:
+# Usamos '..' para subir de 'app/models' a 'app' y acceder a 'database'.
+# =====================================================================
+from ..database import Base
 
 
 class UserRole(enum.Enum):
     """Define los roles de usuario disponibles en el sistema."""
     PATIENT = "Patient"
-    DOCTOR = "doctot"
-    ADMIN = "admin"
+    # ¡Corrección de un error tipográfico!
+    DOCTOR = "Doctor" 
+    ADMIN = "Admin"
 
 class User(Base):
-    
-    
-    
-    
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -24,15 +24,13 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     
-    
+    # Asegúrate de usar la clase Enum directamente
     role = Column(Enum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
 
-    
     google_refresh_token = Column(Text, nullable=True) 
 
-    
-
+    # Asumiendo que ClinicalRecord y Appointment están definidos en otro lugar
     
     patient_records = relationship(
         "ClinicalRecord", 
@@ -42,7 +40,6 @@ class User(Base):
         cascade="all, delete-orphan"
     )
 
-    
     doctor_records = relationship(
         "ClinicalRecord", 
         back_populates="doctor", 
@@ -50,7 +47,6 @@ class User(Base):
         lazy="joined"
     )
 
-    
     patient_appointments = relationship(
         "Appointment", 
         back_populates="patient", 
@@ -58,7 +54,6 @@ class User(Base):
         lazy="joined"
     )
 
-    
     doctor_appointments = relationship(
         "Appointment", 
         back_populates="doctor", 

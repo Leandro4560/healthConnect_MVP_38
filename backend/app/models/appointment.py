@@ -1,75 +1,30 @@
-import enum
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from datetime import datetime
 
-
+# Importación absoluta
 from app.database import Base 
-from app.models.user import User
-
-
-class PriorityLevel(enum.Enum):
-    """Nivel de prioridad de la cita."""
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    EMERGENCY = "emergency"
-
-class AppointmentStatus(enum.Enum):
-    """Estado actual de la cita."""
-    PENDING = "pending"        
-    CONFIRMED = "confirmed"     
-    CANCELLED = "cancelled"     
-    COMPLETED = "completed"     
-    NO_SHOW = "no_show"        
-
-
 
 class Appointment(Base):
     """
-    Representa una cita médica programada entre un paciente y un doctor.
+    Modelo de SQLAlchemy para la tabla de Citas Médicas.
     """
-    __tablename__ = "appointment"
+    __tablename__ = "appointments"
 
     id = Column(Integer, primary_key=True, index=True)
     
+    # Llave foránea que apunta al doctor que agendó la cita
+    doctor_id = Column(Integer, ForeignKey("users.id"), nullable=False) 
     
-    patient_id = Column(Integer, ForeignKey("user.id"), index=True, nullable=False)
+    patient_name = Column(String, index=True, nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String, default="Pendiente") # Ej: Pendiente, Agendada, Cancelada
     
-    
-    doctor_id = Column(Integer, ForeignKey("user.id"), index=True, nullable=True)
-
-   
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
     
-   
-    is_virtual = Column(Boolean, default=True) 
-    notes = Column(String, nullable=True)
+    # Nuevos campos para la integración con Google Calendar
+    google_event_id = Column(String, nullable=True)
+    google_meet_link = Column(String, nullable=True)
     
-   
-    status = Column(Enum(AppointmentStatus), default=AppointmentStatus.PENDING, nullable=False)
-    priority_level = Column(Enum(PriorityLevel), default=PriorityLevel.MEDIUM, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-   
-    
-   
-    google_event_id = Column(String, index=True, nullable=True) 
-    
-   
-    video_url = Column(String, nullable=True) 
-
-    
-    patient = relationship(
-        "User", 
-        foreign_keys=[patient_id], 
-        backref="appointments_as_patient"
-    )
-    
-    
-    doctor = relationship(
-        "User", 
-        foreign_keys=[doctor_id], 
-        backref="appointments_as_doctor"
-    )
+    # Relación para saber a qué doctor pertenece la cita
+    doctor = relationship("User", back_populates="appointments") 

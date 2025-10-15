@@ -1,99 +1,75 @@
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
-from pydantic import BaseModel, EmailStr
+from typing import Optional, List, Dict, Any
 
-from app.models.user import UserRole
-from app.models.appointment import PriorityLevel, AppointmentStatus
+# --- Schemas de Autenticación y Usuarios ---
 
+class UserBase(BaseModel):
+    """Base para la creación/lectura de usuarios."""
+    email: EmailStr = Field(..., example="doctor@hospital.com")
+    name: str = Field(..., example="Dr. Ana García")
+    role: str = Field(..., example="doctor")
 
-class Token(BaseModel):
-    """Esquema de respuesta para el token de acceso."""
-    access_token: str
-    token_type: str = "bearer"
-
-class TokenData(BaseModel):
-    """Esquema para los datos contenidos en el token JWT."""
-    user_id: Optional[int] = None
-    role: Optional[UserRole] = None
-
-
-class UserCreate(BaseModel):
-    """Esquema de entrada para el registro de nuevos usuarios."""
-    email: EmailStr
-    password: str
-    full_name: Optional[str] = None
-    role: UserRole = UserRole.PATIENT
-
-    class Config:
-     
-        use_enum_values = True 
-        json_schema_extra = {
-            "example": {
-                "email": "juan.perez@example.com",
-                "password": "PasswordSeguro123",
-                "full_name": "Juan Pérez",
-                "role": "patient"
-            }
-        }
-
+class UserCreate(UserBase):
+    """Schema para crear un nuevo usuario. Incluye la contraseña."""
+    password: str = Field(..., min_length=6)
 
 class UserLogin(BaseModel):
-    """Esquema de entrada para el login de usuarios."""
-    email: EmailStr
+    """Schema para la autenticación de usuarios."""
+    email: EmailStr = Field(..., example="doctor@hospital.com")
     password: str
 
-class UserOut(BaseModel):
-    """Esquema de salida para devolver información del usuario."""
+class UserResponse(UserBase):
+    """Schema de respuesta para el usuario (omite la contraseña)."""
     id: int
-    email: EmailStr
-    full_name: Optional[str] = None
     is_active: bool
-    role: UserRole
+    # Token de Google no se expone directamente por seguridad, solo si existe.
+    has_google_token: bool = Field(default=False) 
 
     class Config:
         from_attributes = True
-        use_enum_values = True 
 
+class Token(BaseModel):
+    """Schema para el token de acceso JWT."""
+    access_token: str
+    token_type: str = "bearer"
+    # Opcional: para saber si se requiere la conexión a Google
+    requires_google_auth: bool = False 
+    
+class GoogleAuthURL(BaseModel):
+    """Schema para devolver la URL de autenticación de Google."""
+    auth_url: str
+
+
+# --- Schemas de Citas (NUEVOS) ---
 
 class AppointmentCreate(BaseModel):
-    """Esquema de entrada para que un paciente solicite una cita."""
-    doctor_id: Optional[int] = None 
-    start_time: datetime
-    end_time: datetime
-    is_virtual: bool
-    priority_level: PriorityLevel
-    notes: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
-
-class AppointmentUpdate(BaseModel):
-    """Esquema para modificar campos de una cita existente."""
-    doctor_id: Optional[int] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    is_virtual: Optional[bool] = None
-    priority_level: Optional[PriorityLevel] = None
-    status: Optional[AppointmentStatus] = None 
-    video_url: Optional[str] = None
-    notes: Optional[str] = None
+    """Schema para la creación de una nueva cita."""
+    patient_name: str = Field(..., example="Juan Pérez")
+    description: Optional[str] = Field(None, example="Revisión anual y chequeo general.")
     
-    class Config:
-        use_enum_values = True
-        extra = "ignore" 
+    # Usamos datetime para manejar la hora de inicio y fin
+    start_time: datetime = Field(..., example=datetime.now())
+    end_time: datetime = Field(..., example=datetime.now())
 
-class AppointmentResponse(BaseModel):
-    """Esquema de salida para devolver los detalles de la cita."""
+class AppointmentResponse(AppointmentCreate):
+    """Schema de respuesta para una cita, incluyendo datos de la DB y Google."""
     id: int
-    patient_id: int
-    doctor_id: Optional[int] = None
-    start_time: datetime
-    end_time: datetime
-    status: AppointmentStatus
-    priority_level: PriorityLevel
-    video_url: Optional[str] = None
-    created_at: datetime
+    doctor_id: int
+    status: str = Field(..., example="Agendada")
     
+    # Campos opcionales de Google Calendar
+    google_event_id: Optional[str] = None
+    google_meet_link: Optional[str] = None
+
     class Config:
         from_attributes = True
-        use_enum_values = True
+        
+# --- Schema de Error (Mantenido o añadido si no existía) ---
+
+class HTTPError(BaseModel):
+    """Schema estándar para respuestas de error de la API."""
+    detail: str = Field(..., example="Un error inesperado ha ocurrido.")
+
+    class Config:
+        from_attributes = True

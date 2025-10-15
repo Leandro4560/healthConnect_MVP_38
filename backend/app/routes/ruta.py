@@ -2,23 +2,29 @@ from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from datetime import timedelta, datetime
 from typing import Annotated, Optional
+# CORRECCIÓN: Importar RedirectResponse aquí para que Pylance lo encuentre.
+from starlette.responses import RedirectResponse 
 
 
-from app.database import get_db
-from app.utils import schemas as datos
-from app.utils import security as validacion_api 
-from app.config import settings
-from app.utils.google_tokens import get_google_auth_flow, exchange_code_for_tokens
-from app.utils.servicios_meet_calendar import create_google_calendar_event 
-from app.excepciones import GoogleCalendarError 
-from starlette.responses import RedirectResponse
-from app.models.user import User, UserRole
-from app.utils.security import CurrentUserDep 
+# CORRECCIONES EN RUTAS RELATIVAS (usando doble punto '..')
+# Subir al nivel 'app' y buscar los módulos:
+from ..database import get_db
+from ..utils import schemas as datos
+from ..utils import security as validacion_api 
+from ..config import settings
+from ..utils.google_tokens import get_google_auth_flow, exchange_code_for_tokens
+from ..utils.servicios_meet_calendar import create_google_calendar_event 
+from ..excepciones import GoogleCalendarError 
+from ..models.user import User, UserRole 
+from ..utils.security import CurrentUserDep 
 
 
 router = APIRouter(
     tags=["Autenticación"],
 )
+
+# ... (El resto del código sigue igual)
+
 
 
 SessionDep = Annotated[Session, Depends(get_db)]
@@ -31,7 +37,7 @@ def register_user(user_data: datos.UserCreate, db: SessionDep):
     """
     Registra un nuevo usuario en el sistema.
     """
-  
+    
     db_user = db.query(User).filter(User.email == user_data.email).first()
     if db_user:
         raise HTTPException(
@@ -50,7 +56,7 @@ def register_user(user_data: datos.UserCreate, db: SessionDep):
         role=user_data.role 
     )
 
- 
+    
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -63,7 +69,7 @@ def login_for_access_token(user_data: datos.UserLogin, db: SessionDep):
     """
     Verifica las credenciales y devuelve un token JWT si son válidas.
     """
-  
+    
     db_user = db.query(User).filter(User.email == user_data.email).first()
     
     
@@ -81,7 +87,7 @@ def login_for_access_token(user_data: datos.UserLogin, db: SessionDep):
         expires_delta=access_token_expires
     )
     
-  
+    
     return {"access_token": access_token}
 
 
@@ -110,18 +116,18 @@ def google_callback(code: str, db: SessionDep):
     Intercambia el código por tokens y guarda el refresh_token del doctor.
     """
     try:
-       
+        
         tokens = exchange_code_for_tokens(code)
         refresh_token = tokens.get('refresh_token')
         google_email = tokens.get('email')
 
         if not refresh_token:
-             raise HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No se pudo obtener el token de refresco (Refresh Token). Reintente, asegurándose de dar todos los permisos."
             )
 
-      
+        
         db_user = db.query(User).filter(User.email == google_email).first()
 
         if not db_user:
@@ -130,11 +136,11 @@ def google_callback(code: str, db: SessionDep):
                 detail=f"Usuario con email {google_email} no encontrado en la base de datos."
             )
 
-       
+        
         db_user.google_refresh_token = refresh_token
         db.commit()
 
-       
+        
         return RedirectResponse(
             url="/", 
             status_code=status.HTTP_302_FOUND,
@@ -177,7 +183,7 @@ def create_appointment_with_meet(
             detail="Solo los doctores pueden crear citas de calendario."
         )
 
-   
+    
     if not current_user.google_refresh_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -205,4 +211,11 @@ def create_appointment_with_meet(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al crear el evento de Google: {e.detail}"
+        )
+
+    except Exception as e:
+        print(f"Error al crear la cita: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al crear la cita."
         )

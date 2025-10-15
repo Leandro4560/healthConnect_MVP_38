@@ -1,13 +1,19 @@
 from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime
+import pytz 
+
 from app.models.appointment import Appointment, PriorityLevel, AppointmentStatus
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole 
 from app.utils import schemas as datos
 from app.excepciones import BusinessException, GoogleCalendarError
 from app.utils.servicios_meet_calendar import create_google_calendar_event
-from app.crud.user_crud import get_user_by_id, get_user_by_email 
-from app.config import settings
-from datetime import datetime
-from typing import List, Optional
+from app.crud.user_crud import get_user 
+class Settings:
+    """Configuración simulada para TIME_ZONE_INFO."""
+    
+    TIME_ZONE_INFO = pytz.timezone('UTC') 
+settings = Settings() 
 
 
 def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, patient: User) -> Appointment:
@@ -15,16 +21,23 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     Crea una nueva cita en la base de datos y, si es virtual, un evento en Google Calendar
     del doctor asignado.
     """
-   
+    
     patient_id = patient.id
+    
+    
+    video_url = None
+    calendar_event_id = None
+    
     
     if not appointment_data.doctor_id:
         raise BusinessException(400, "Debe seleccionar un doctor para agendar la cita.")
 
-    doctor = get_user_by_id(db, user_id=appointment_data.doctor_id)
+    
+    doctor = get_user(db, user_id=appointment_data.doctor_id) 
     if not doctor or doctor.role != UserRole.DOCTOR:
         raise BusinessException(404, "Doctor no encontrado o rol incorrecto.")
-     
+        
+    
     existing_appointment = db.query(Appointment).filter(
         Appointment.doctor_id == appointment_data.doctor_id,
         Appointment.status != AppointmentStatus.CANCELED, 
@@ -35,9 +48,10 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     if existing_appointment:
         raise BusinessException(400, "El doctor no está disponible en ese horario. Por favor, seleccione otro.")
 
-    video_url = None
+    
     if appointment_data.is_virtual:
         if not doctor.google_refresh_token:
+            
             raise BusinessException(400, "El doctor aún no ha conectado su Google Calendar. No se puede agendar la cita virtual.")
         
         try:
@@ -49,11 +63,15 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
                 end_time=appointment_data.end_time,
                 patient_email=patient.email
             )
-            video_url = meet_info['meet_url']
+          
+            video_url = meet_info.get('meet_url')
+            calendar_event_id = meet_info.get('event_id') # <-- Captura el ID correctamente
             
         except GoogleCalendarError as e:
+            
             raise BusinessException(500, f"Error al crear el evento de Google Calendar: {e.detail}")
 
+    
     db_appointment = Appointment(
         patient_id=patient_id,
         doctor_id=appointment_data.doctor_id,
@@ -62,8 +80,11 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
         is_virtual=appointment_data.is_virtual,
         priority_level=appointment_data.priority_level,
         notes=appointment_data.notes,
-        video_url=video_url,
-        status=AppointmentStatus.SCHEDULED 
+        video_url=video_url, # Usará None si no es virtual
+        # Si la creación del evento de Google fue exitosa, el estado es Scheduled, 
+        # si no es virtual, también es Scheduled.
+        status=AppointmentStatus.SCHEDULED,
+        calendar_event_id=calendar_event_id # Usará None si no es virtual (inicializado en None)
     )
 
     db.add(db_appointment)
@@ -71,6 +92,13 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     db.refresh(db_appointment)
 
     return db_appointment
+
+
+# --- Funciones de Obtención (READ) ---
+
+def get_appointment(db: Session, appointment_id: int) -> Optional[Appointment]:
+    """Obtiene una cita por su ID."""
+    return db.query(Appointment).filter(Appointment.id == appointment_id).first()
 
 def get_appointments_by_patient(db: Session, patient_id: int, include_past: bool = False) -> List[Appointment]:
     """
@@ -82,8 +110,9 @@ def get_appointments_by_patient(db: Session, patient_id: int, include_past: bool
     ).order_by(Appointment.start_time.asc()) 
 
     if not include_past:
-       
-        query = query.filter(Appointment.start_time >= datetime.now(settings.TIME_ZONE_INFO))
+        
+        now_with_tz = datetime.now(settings.TIME_ZONE_INFO)
+        query = query.filter(Appointment.start_time >= now_with_tz)
 
     return query.all()
 
@@ -97,6 +126,28 @@ def get_appointments_by_doctor(db: Session, doctor_id: int, include_past: bool =
     ).order_by(Appointment.start_time.asc()) 
 
     if not include_past:
-        query = query.filter(Appointment.start_time >= datetime.now(settings.TIME_ZONE_INFO))
+        
+        now_with_tz = datetime.now(settings.TIME_ZONE_INFO)
+        query = query.filter(Appointment.start_time >= now_with_tz)
 
     return query.all()
+
+
+def update_appointment_status(db: Session, appointment_id: int, new_status: AppointmentStatus) -> Optional[Appointment]:
+    """Actualiza solo el estado de una cita."""
+    db_appointment = get_appointment(db, appointment_id)
+    if db_appointment:
+        db_appointment.status = new_status
+        db.commit()
+        db.refresh(db_appointment)
+        return db_appointment
+    return None
+
+def delete_appointment(db: Session, appointment_id: int) -> bool:
+    """Elimina una cita por su ID."""
+    db_appointment = get_appointment(db, appointment_id)
+    if db_appointment:
+        db.delete(db_appointment)
+        db.commit()
+        return True
+    return False

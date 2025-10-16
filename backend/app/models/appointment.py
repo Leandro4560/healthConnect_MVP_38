@@ -1,29 +1,22 @@
-import enum
-from sqlalchemy import Column, Integer, String, Enum, ForeignKey, Boolean, DateTime, Text, func
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Boolean, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
-
-from app.database import Base 
-
+from app.database import Base
+import enum
 
 
 class PriorityLevel(enum.Enum):
-    
-    LOW = "Baja"
-    MEDIUM = "Media"
-    HIGH = "Alta"
-    URGENT = "Urgente"
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
 
 class AppointmentStatus(enum.Enum):
-    
-    REQUESTED = "Solicitada"      
-    CONFIRMED = "Confirmada"      
-    CANCELLED = "Cancelada"      
-    COMPLETED = "Completada"      
-    NO_SHOW = "No Presentado"     
-
-
+    PENDIENTE = "PENDIENTE"
+    SCHEDULED = "SCHEDULED"  
+    CONFIRMADA = "CONFIRMADA"
+    CANCELED = "CANCELED"   
+    FINALIZADA = "FINALIZADA"
 
 class Appointment(Base):
     __tablename__ = "appointments"
@@ -31,39 +24,31 @@ class Appointment(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     
-    patient_id = Column(Integer, ForeignKey("users.id"), index=True)
-    doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True) 
+    patient_id = Column(Integer, ForeignKey("users.id"))
+    doctor_id = Column(Integer, ForeignKey("users.id"))
 
-   
-    start_time = Column(DateTime)
+    
+    start_time = Column(DateTime, index=True)
     end_time = Column(DateTime)
+    
+    
     is_virtual = Column(Boolean, default=True)
-    
-    
     priority_level = Column(Enum(PriorityLevel), default=PriorityLevel.MEDIUM)
-    status = Column(Enum(AppointmentStatus), default=AppointmentStatus.REQUESTED)
-    
-    
-    video_url = Column(Text, nullable=True) 
-    
-   
     notes = Column(Text, nullable=True)
+    video_url = Column(String, nullable=True) # Tu campo video_url
+    
+ 
+    status = Column(Enum(AppointmentStatus), default=AppointmentStatus.PENDIENTE)
+    
+    
+    google_event_id = Column(String, nullable=True)
+    
+    
+    patient = relationship("User", foreign_keys=[patient_id], backref="patient_appointments")
+    doctor = relationship("User", foreign_keys=[doctor_id], backref="doctor_appointments")
+    
+    
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    
-    
-    
-    patient = relationship(
-        "User", 
-        back_populates="patient_appointments", 
-        foreign_keys=[patient_id],
-        lazy="joined"
-    )
 
-    
-    doctor = relationship(
-        "User", 
-        back_populates="doctor_appointments", 
-        foreign_keys=[doctor_id],
-        lazy="joined"
-    )
+    def __repr__(self):
+        return f"<Appointment(id={self.id}, start={self.start_time}, status={self.status.value})>"

@@ -40,8 +40,11 @@ backend/
 
 1. **Instalar dependencias:**
    ```bash
-   cd backend
+   cd backend  
+   python3 -m venv venv
+   source backend/venv/bin/activate
    pip install -r requirements.txt
+   uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
 
 2. **Configurar variables de entorno:**
@@ -50,7 +53,8 @@ backend/
 
 3. **Ejecutar la aplicación:**
    ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   
+   uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
 
 ## API Endpoints
@@ -87,4 +91,4 @@ Para desarrollo local, asegúrate de tener:
 - Variables de entorno configuradas
 - Credenciales de Google APIs configuradas
 
-La aplicación se ejecuta en `http://localhost:8000` y la documentación interactiva está disponible en `http://localhost:8000/docs`.
+La aplicación se ejecuta en ` http://127.0.0.1:8000` y la documentación interactiva está disponible en `http://localhost:8000/docs`.

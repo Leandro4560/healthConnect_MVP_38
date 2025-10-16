@@ -72,3 +72,8 @@ Para desarrollo local:
 4. Ejecutar frontend en puerto 5173 (Vite default)
 
 La documentación interactiva del API está disponible en `http://localhost:8000/docs`.
+<<<<<<< HEAD
+=======
+
+URL publica del backend para consumo posiblemente en fronted si es necesario: https://reimagined-carnival-695qvv6jjvxp3x4wx-5762.app.github.dev/
+>>>>>>> f9ff98522ec626a25d70cff59a0898a0d5063808

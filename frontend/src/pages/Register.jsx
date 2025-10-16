@@ -17,7 +17,7 @@ const Register = () => {
           <h1 className="text-2xl md:text-3xl">Registrate</h1>
           <div className="flex">
             <p className="pr-3">¿Ya tienes cuenta?</p>
-            <Link to="/login" className="font-medium">
+            <Link to="/login" className="font-bold  text-primary-400">
               Inicia sesión
             </Link>
           </div>

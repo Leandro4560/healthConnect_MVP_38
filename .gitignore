@@ -11,3 +11,4 @@ env/
 # Archivos de caché de Google
 *.json
 token.pickle
+.env

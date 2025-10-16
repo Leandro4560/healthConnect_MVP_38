@@ -18,11 +18,24 @@ def create_google_calendar_event(
     end_time: datetime.datetime,
     patient_email: str
 ) -> Optional[Dict]:
-   
+    """
+    Crea un evento de Google Calendar en el calendario principal del doctor,
+    y automáticamente genera un enlace de Google Meet.
+
+    Args:
+        doctor: El objeto User del doctor, que debe contener el google_refresh_token.
+        summary: Título del evento (ej: "Cita con Juan Pérez").
+        description: Descripción del evento.
+        start_time: Objeto datetime.datetime con el inicio de la cita.
+        end_time: Objeto datetime.datetime con el final de la cita.
+        patient_email: Email del paciente para enviarle la invitación.
+
+    Returns:
+        Un diccionario con la URL de Meet y la URL del evento, o None si falla.
+    """
     
     refresh_token = doctor.google_refresh_token
     if not refresh_token:
-        
         raise GoogleCalendarError("Doctor no tiene el calendario de Google conectado.")
 
     credentials = get_credentials_from_refresh_token(refresh_token)

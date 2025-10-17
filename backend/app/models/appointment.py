@@ -35,7 +35,7 @@ class Appointment(Base):
     is_virtual = Column(Boolean, default=True)
     priority_level = Column(Enum(PriorityLevel), default=PriorityLevel.MEDIUM)
     notes = Column(Text, nullable=True)
-    video_url = Column(String, nullable=True) # Tu campo video_url
+    video_url = Column(String, nullable=True) 
     
  
     status = Column(Enum(AppointmentStatus), default=AppointmentStatus.PENDIENTE)

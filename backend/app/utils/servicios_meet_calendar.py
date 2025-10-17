@@ -5,17 +5,20 @@ from app.excepciones import GoogleCalendarError
 from app.models.user import User
 from app.config import settings
 from typing import Dict, Optional
-import datetime
-import pytz
+from datetime import datetime
+from zoneinfo import ZoneInfo # Usamos el módulo estándar 'zoneinfo'
 
-TIME_ZONE = settings.TIME_ZONE 
+# Configuración de zona horaria
+TIME_ZONE = settings.TIME_ZONE
+TIME_ZONE_INFO = ZoneInfo(TIME_ZONE)
+
 
 def create_google_calendar_event(
     doctor: User,
     summary: str,
     description: str,
-    start_time: datetime.datetime,
-    end_time: datetime.datetime,
+    start_time: datetime,
+    end_time: datetime,
     patient_email: str
 ) -> Optional[Dict]:
     """
@@ -31,32 +34,42 @@ def create_google_calendar_event(
         patient_email: Email del paciente para enviarle la invitación.
 
     Returns:
-        Un diccionario con la URL de Meet y la URL del evento, o None si falla.
+        Un diccionario con la URL de Meet y el ID del evento de Google.
     """
     
     refresh_token = doctor.google_refresh_token
     if not refresh_token:
+        # Aunque el router ya verificó esto, es una buena práctica de seguridad
         raise GoogleCalendarError("Doctor no tiene el calendario de Google conectado.")
 
     credentials = get_credentials_from_refresh_token(refresh_token)
     
     if not credentials:
-        raise GoogleCalendarError("Token de refresco de Google inválido o expirado.")
-
-    try:
-        service = build('calendar', 'v3', credentials=credentials)
-
-        local_tz = pytz.timezone(TIME_ZONE)
+        raise GoogleCalendarError("No se pudieron obtener credenciales válidas de Google.")
         
-        start_dt_aware = local_tz.localize(start_time) if start_time.tzinfo is None else start_time
-        end_dt_aware = local_tz.localize(end_time) if end_time.tzinfo is None else end_time
-
+    try:
+        # 1. Crear el servicio de Google Calendar
+        service = build('calendar', 'v3', credentials=credentials)
+        
+        # 2. Asegurar que las fechas son timezone-aware (si vienen naive, se asume la zona del doctor)
+        if start_time.tzinfo is None:
+            start_dt_aware = start_time.replace(tzinfo=TIME_ZONE_INFO)
+        else:
+            start_dt_aware = start_time.astimezone(TIME_ZONE_INFO)
+            
+        if end_time.tzinfo is None:
+            end_dt_aware = end_time.replace(tzinfo=TIME_ZONE_INFO)
+        else:
+            end_dt_aware = end_time.astimezone(TIME_ZONE_INFO)
+            
+        # 3. Construir el cuerpo del evento
         event = {
             'summary': summary,
             'description': description,
-            'conferenceData': {
+            'location': 'Consulta Online (Google Meet)',
+            'conferenceData': { # Pide a Google que cree una conferencia (Meet)
                 'createRequest': {
-                    'requestId': f"meet-{doctor.id}-{start_time.strftime('%Y%m%d%H%M%S')}",
+                    'requestId': f"meet-{doctor.id}-{start_dt_aware.timestamp()}",
                     'conferenceSolutionKey': {'type': 'hangoutsMeet'}
                 },
             },
@@ -68,6 +81,7 @@ def create_google_calendar_event(
                 'dateTime': end_dt_aware.isoformat(),
                 'timeZone': TIME_ZONE,
             },
+            # Añade al doctor (organizador) y al paciente
             'attendees': [
                 {'email': doctor.email},
                 {'email': patient_email, 'responseStatus': 'needsAction'},
@@ -75,19 +89,21 @@ def create_google_calendar_event(
             'reminders': {
                 'useDefault': False,
                 'overrides': [
-                    {'method': 'email', 'minutes': 24 * 60}, 
-                    {'method': 'email', 'minutes': 10},      
+                    {'method': 'email', 'minutes': 24 * 60}, # 1 día antes
+                    {'method': 'email', 'minutes': 10},      # 10 minutos antes
                 ],
             },
         }
 
+        # 4. Insertar el evento
         event = service.events().insert(
             calendarId='primary',
             body=event,
-            conferenceDataVersion=1,
+            conferenceDataVersion=1, # Indica que queremos la conferencia
             sendNotifications=True
         ).execute()
 
+        # 5. Extraer el enlace de Meet
         meet_link = None
         for entry in event.get('conferenceData', {}).get('entryPoints', []):
             if entry.get('entryPointType') == 'video':
@@ -96,7 +112,7 @@ def create_google_calendar_event(
 
         return {
             "meet_url": meet_link,
-            "event_url": event.get('htmlLink')
+            "event_id": event.get('id')
         }
 
     except HttpError as e:

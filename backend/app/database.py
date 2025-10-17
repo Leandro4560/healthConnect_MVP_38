@@ -1,18 +1,20 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-# CORRECCIÓN: Usar importación relativa (from .config)
-from .config import settings
 import os
 
 
+from app.config import settings 
+
 DATABASE_URL = settings.DATABASE_URL
+
 
 engine = create_engine(
     DATABASE_URL, 
     pool_pre_ping=True, 
-    future=True
+    future=True        
 )
+
 
 SessionLocal = sessionmaker(
     autocommit=False, 
@@ -21,12 +23,14 @@ SessionLocal = sessionmaker(
     future=True
 )
 
+
 Base = declarative_base()
 
 def get_db():
-    """Dependencia para obtener la sesión de la base de datos."""
+    """Dependencia de FastAPI para obtener la sesión de la base de datos."""
     db = SessionLocal()
     try:
         yield db
     finally:
+        
         db.close()

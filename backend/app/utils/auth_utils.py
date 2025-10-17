@@ -7,20 +7,20 @@ from app.config import settings
 from app.excepciones import BusinessException, CredencialesInvalidas
 from app.models.user import User
 
-# Endpoints de la API de Google
+
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token" 
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo"
 
 
-# --- 1. Generar la URL de Login de Google ---
+
 
 def get_google_login_url(state: str) -> str:
     """Genera la URL de redirección a Google para iniciar el proceso de OAuth."""
-    # Scopes necesarios: email, perfil, y acceso a calendar.events (para agendar)
+    
     scopes = [
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
-        # Este scope es crucial para la integración con Google Calendar
+        
         "https://www.googleapis.com/auth/calendar.events",
     ]
     
@@ -29,15 +29,15 @@ def get_google_login_url(state: str) -> str:
         "redirect_uri": settings.GOOGLE_REDIRECT_URI,
         "response_type": "code",
         "scope": " ".join(scopes),
-        "access_type": "offline",  # Solicita un Refresh Token (importante)
-        "prompt": "consent",       # Asegura que se pida consentimiento y devuelva el Refresh Token
-        "state": state             # Estado de seguridad
+        "access_type": "offline",  
+        "prompt": "consent",       
+        "state": state             
     }
     
     return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
 
 
-# --- 2. Intercambio de Código por Tokens ---
+
 
 def exchange_code_for_tokens(auth_code: str) -> Dict[str, Any]:
     """
@@ -64,7 +64,7 @@ def exchange_code_for_tokens(auth_code: str) -> Dict[str, Any]:
     return response.json()
 
 
-# --- 3. Obtener Información del Usuario ---
+
 
 def get_google_user_info(access_token: str) -> Dict[str, Any]:
     """Obtiene el email y nombre del usuario de Google usando el Access Token."""
@@ -81,7 +81,7 @@ def get_google_user_info(access_token: str) -> Dict[str, Any]:
     return response.json()
 
 
-# --- 4. Refrescar Access Token (para Calendar) ---
+
 
 def refresh_google_access_token(user: User) -> str:
     """

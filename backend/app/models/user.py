@@ -1,36 +1,46 @@
 import enum
 from sqlalchemy import Column, Integer, String, Enum, Boolean, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID as SQAlchemyUUID # Importamos el tipo UUID
+from uuid import uuid4 # Importamos para posible uso, aunque no es estrictamente necesario aquí
 
-# =====================================================================
-# Importación CORREGIDA:
-# Usamos '..' para subir de 'app/models' a 'app' y acceder a 'database'.
-# =====================================================================
+
 from ..database import Base
 
 
 class UserRole(enum.Enum):
     """Define los roles de usuario disponibles en el sistema."""
     PATIENT = "Patient"
-    # ¡Corrección de un error tipográfico!
+    
     DOCTOR = "Doctor" 
     ADMIN = "Admin"
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    
+    id = Column(Integer, primary_key=True, index=True) 
+    
+   
+    supabase_id = Column(
+        SQAlchemyUUID(as_uuid=True), 
+        unique=True, 
+        nullable=True, 
+        index=True
+    )
+    
+    
     full_name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     
-    # Asegúrate de usar la clase Enum directamente
+   
     role = Column(Enum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
 
     google_refresh_token = Column(Text, nullable=True) 
 
-    # Asumiendo que ClinicalRecord y Appointment están definidos en otro lugar
+    
     
     patient_records = relationship(
         "ClinicalRecord", 
@@ -60,3 +70,8 @@ class User(Base):
         foreign_keys="Appointment.doctor_id",
         lazy="joined"
     )
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email}, role={self.role})>"
+    def __str__(self):
+        return f"User {self.full_name} ({self.email}) - Role: {self.role.value}"
+    

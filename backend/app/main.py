@@ -1,36 +1,43 @@
 from fastapi import FastAPI
-from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import settings
+from app.database import engine, Base 
+
+
+
+
+from app.routes import ruta, citas 
+
 
 
 app = FastAPI(
-    title="HealthConnect API",
-    description="API para la gestión de usuarios, médicos, citas y registros de salud.",
-    version="0.1.0"
+    title="Servicio de Autenticación y Citas",
+    version="1.0.0",
 )
 
 
+origins = [
+    "http://localhost",
+    "http://localhost:3000", 
+]
 
-class UserBase(BaseModel):
-    email: EmailStr
-    name: str
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-class UserCreate(UserBase):
-    password: str
 
-class User(UserBase):
-    id: int
-    is_active: bool
-
-    class Config:
-
-        from_attributes = True
-
+app.include_router(ruta.router, prefix="/auth", tags=["Autenticación"])
+app.include_router(citas.router, prefix="/citas", tags=["Citas Médicas"])
 
 
 @app.get("/")
 def read_root():
-    """Endpoint de bienvenida para verificar que la API está activa."""
-    return {"message": "¡Bienvenido a HealthConnect API! (Servidor activo)"}
+    """Ruta de salud simple para verificar que el servicio está activo."""
+    return {"message": "¡Servicio de citas activo!"}
 
 

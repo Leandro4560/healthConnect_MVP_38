@@ -2,8 +2,13 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 
+
 def get_doctor_available_slots(doctor_id: int, date: datetime) -> List[datetime]:
- 
+    """
+    Retorna una lista de slots de 30 minutos disponibles para un doctor en una fecha dada.
+    (Lógica simplificada: Lunes a Viernes, de 9 AM a 12 PM)
+    """
+    
     
     if date.weekday() in [5, 6]:
         return []
@@ -13,7 +18,9 @@ def get_doctor_available_slots(doctor_id: int, date: datetime) -> List[datetime]
     end_hour = 12
     slot_duration_minutes = 30
 
+    
     current_time = datetime(date.year, date.month, date.day, start_hour, 0, 0)
+    
     end_of_day = datetime(date.year, date.month, date.day, end_hour, 0, 0)
 
     while current_time < end_of_day:
@@ -23,10 +30,3 @@ def get_doctor_available_slots(doctor_id: int, date: datetime) -> List[datetime]
     return available_slots
 
 
-def generate_teleconsult_link(appointment_id: int, is_virtual: bool) -> Optional[str]:
-     
-    if not is_virtual:
-        return None
-    
-    unique_id = f"{appointment_id}-{datetime.now().strftime('%Y%m%d%H%M')}"
-    return f"https://meet.healthtech.com/consult/{unique_id}"

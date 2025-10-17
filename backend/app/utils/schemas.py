@@ -1,14 +1,17 @@
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from uuid import UUID 
 
-# --- Schemas de Autenticación y Usuarios ---
 
 class UserBase(BaseModel):
     """Base para la creación/lectura de usuarios."""
+   
     email: EmailStr = Field(..., example="doctor@hospital.com")
-    name: str = Field(..., example="Dr. Ana García")
-    role: str = Field(..., example="doctor")
+    name: str = Field(..., example="Dr. Ana García") 
+    
+    
+    role: Optional[str] = Field(None, example="DOCTOR")
 
 class UserCreate(UserBase):
     """Schema para crear un nuevo usuario. Incluye la contraseña."""
@@ -19,57 +22,89 @@ class UserLogin(BaseModel):
     email: EmailStr = Field(..., example="doctor@hospital.com")
     password: str
 
-class UserResponse(UserBase):
-    """Schema de respuesta para el usuario (omite la contraseña)."""
+
+class UserUpdate(BaseModel):
+    """Schema para actualizar datos de un usuario. Todos los campos son opcionales."""
+    email: Optional[EmailStr] = None
+    name: Optional[str] = None
+    role: Optional[str] = None
+    password: Optional[str] = None
+    is_active: Optional[bool] = None
+    
+   
+    google_refresh_token: Optional[str] = None 
+    
+    class Config:
+        
+        extra = "ignore" 
+
+
+class UserResponse(BaseModel):
+    """Schema de salida para los datos del usuario."""
     id: int
+    
+    full_name: str = Field(..., alias="name") 
+    email: EmailStr
+    role: str
     is_active: bool
-    # Token de Google no se expone directamente por seguridad, solo si existe.
-    has_google_token: bool = Field(default=False) 
+    
+    supabase_id: Optional[UUID] = None 
 
     class Config:
+        
         from_attributes = True
+        
 
-class Token(BaseModel):
-    """Schema para el token de acceso JWT."""
+
+
+
+class TokenData(BaseModel):
+    """Schema interno que representa los datos que van dentro del token JWT."""
+    user_id: Optional[int] = None
+    role: Optional[str] = None
+    exp: Optional[datetime] = None 
+
+class TokenResponse(BaseModel):
+    """Schema de respuesta para el login exitoso."""
     access_token: str
     token_type: str = "bearer"
-    # Opcional: para saber si se requiere la conexión a Google
-    requires_google_auth: bool = False 
-    
-class GoogleAuthURL(BaseModel):
-    """Schema para devolver la URL de autenticación de Google."""
-    auth_url: str
+    user: UserResponse 
 
 
-# --- Schemas de Citas (NUEVOS) ---
+
 
 class AppointmentCreate(BaseModel):
     """Schema para la creación de una nueva cita."""
+    
+    doctor_id: int = Field(..., example=1) 
     patient_name: str = Field(..., example="Juan Pérez")
     description: Optional[str] = Field(None, example="Revisión anual y chequeo general.")
     
-    # Usamos datetime para manejar la hora de inicio y fin
+  
     start_time: datetime = Field(..., example=datetime.now())
     end_time: datetime = Field(..., example=datetime.now())
+    is_virtual: Optional[bool] = True
+    priority_level: Optional[str] = "MEDIUM"
+
 
 class AppointmentResponse(AppointmentCreate):
     """Schema de respuesta para una cita, incluyendo datos de la DB y Google."""
     id: int
-    doctor_id: int
-    status: str = Field(..., example="Agendada")
+    patient_id: Optional[int] = None 
+    status: str = Field(..., example="SCHEDULED")
     
-    # Campos opcionales de Google Calendar
+  
     google_event_id: Optional[str] = None
-    google_meet_link: Optional[str] = None
+    google_meet_link: Optional[str] = Field(None, alias="video_url") 
+    ics_uid: Optional[str] = None 
 
     class Config:
         from_attributes = True
+        populate_by_name = True 
+
         
-# --- Schema de Error (Mantenido o añadido si no existía) ---
+
 
 class HTTPError(BaseModel):
-    """Schema estándar para respuestas de error de la API."""
-    detail: str = Field(..., example="Un error inesperado ha ocurrido.")
-
-    class Config:
-        from_attributes = True
+    """Schema estándar para la documentación de errores de la API."""
+    detail: str

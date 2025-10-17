@@ -106,5 +106,13 @@ class AppointmentResponse(AppointmentCreate):
 
 
 class HTTPError(BaseModel):
+<<<<<<< HEAD
     """Schema estándar para la documentación de errores de la API."""
     detail: str
+=======
+    """Schema estándar para respuestas de error de la API."""
+    detail: str = Field(..., example="Un error inesperado ha ocurrido.")
+
+    class Config:
+        from_attributes = True
+>>>>>>> 54e5f519722c03ecd36a04a16f3725464eb77d33

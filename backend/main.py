@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 from app.database import Base, engine
-from app.routes import ruta, citas 
+from app.routes import ruta, citas # <-- Importación revertida: quitamos clinical_records
 
 
 try:
@@ -48,7 +48,10 @@ app.add_middleware(
 
 app.include_router(ruta.router, prefix="/api/v1/auth", tags=["Autenticación"])
 app.include_router(citas.router, prefix="/api/v1/appointments", tags=["Citas"])
+# app.include_router(clinical_records.router, prefix="/api/v1", tags=["Registros Clínicos"]) # <-- 2. Router de Registros Clínicos comentado temporalmente
+
 
 @app.get("/")
 def read_root():
     return {"message": "API de Gestión Médica funcionando."}
+

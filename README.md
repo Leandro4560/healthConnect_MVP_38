@@ -34,9 +34,23 @@ healthConnect_MVP_38/
 
 ## Instalación y Configuración
 
-### Backend
+### Backend (LINUX, MAC, CODESPACE)
 ```bash
 cd backend
+pip install -r requirements.txt
+python3 -m venv venv
+./venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+bash (Windows)
+```cd backend
+python -m venv backedn/venv
+./venv/Scripts/activate
+pip install -r requirements.txt
+pip install tzdata
+pip install fastapi uvicorn[standard] sqlalchemy pydantic python-multipart python-decouple passlib[bcrypt] python-dotenv psycopg2-binary
+pip install supabase
 pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```

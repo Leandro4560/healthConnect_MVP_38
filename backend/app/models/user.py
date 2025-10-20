@@ -6,10 +6,10 @@ from sqlalchemy.dialects.postgresql import UUID as SQAlchemyUUID
 from uuid import uuid4 
 
 from ..database import Base
-# Se importan las clases para las relaciones
+
 from .appointment import Appointment 
 from .clinical_record import ClinicalRecord
-from sqlalchemy import Integer # Se mantiene por si se usa en otros lugares, pero no en id
+from sqlalchemy import Integer 
 
 class UserRole(enum.Enum):
     """Define los roles de usuario disponibles en el sistema."""
@@ -20,10 +20,9 @@ class UserRole(enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    # CORRECCIÓN CLAVE: ID como UUID con generación automática
     id = Column(SQAlchemyUUID(as_uuid=True), primary_key=True, default=uuid4) 
     
-    # Campos de Autenticación/Perfil
+  
     supabase_id = Column(
         SQAlchemyUUID(as_uuid=True), 
         unique=True, 
@@ -35,16 +34,13 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     
-    # Roles y Estado
+   
     role = Column(Enum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
 
-    # Integración con Google Calendar
+   
     google_refresh_token = Column(Text, nullable=True) 
     
-    # ----------------------------------------------------------------------
-    # RELACIONES
-    # ----------------------------------------------------------------------
     
     patient_records = relationship(
         "ClinicalRecord", 

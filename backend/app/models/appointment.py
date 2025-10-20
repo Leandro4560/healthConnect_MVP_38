@@ -4,7 +4,6 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
 import enum
-# AÑADIDO: Importar UUID para claves foráneas
 from sqlalchemy.dialects.postgresql import UUID as SQAlchemyUUID 
 
 class PriorityLevel(enum.Enum):
@@ -24,27 +23,21 @@ class Appointment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     
-    # Llaves Foráneas
-    # CORRECCIÓN CLAVE: Cambiar a UUID
     patient_id = Column(SQAlchemyUUID(as_uuid=True), ForeignKey("users.id"))
-    # CORRECCIÓN CLAVE: Cambiar a UUID
+
     doctor_id = Column(SQAlchemyUUID(as_uuid=True), ForeignKey("users.id"))
 
-    # Campos de la cita
     start_time = Column(DateTime, index=True)
     end_time = Column(DateTime)
     notes = Column(Text, nullable=True)
     
-    # Detalles de la cita
     is_virtual = Column(Boolean, default=True)
     priority_level = Column(Enum(PriorityLevel), default=PriorityLevel.MEDIUM)
     status = Column(Enum(AppointmentStatus), default=AppointmentStatus.PENDIENTE)
     
-    # Campos de Google Calendar
     video_url = Column(String, nullable=True) 
     google_event_id = Column(String, nullable=True)
     
-    # Relaciones
     patient = relationship(
         "User", 
         foreign_keys=[patient_id],

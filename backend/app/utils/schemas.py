@@ -1,8 +1,8 @@
-# app/utils/schemas.py
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from uuid import UUID 
+# Eliminar la siguiente línea
+# from uuid import UUID 
 
 
 # ----------------------------------------------------------------------
@@ -46,7 +46,8 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     is_active: bool
-    supabase_id: Optional[UUID] = None
+    # Cambiar UUID por Optional[str]
+    supabase_id: Optional[str] = None
     has_google_token: Optional[bool] = None # Campo para el frontend
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
@@ -60,10 +61,9 @@ class Token(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Schema de respuesta para el login exitoso."""
+    """Schema para la respuesta del token JWT."""
     access_token: str
-    token_type: str = "bearer"
-    user: UserResponse 
+    token_type: str
 
 
 # ----------------------------------------------------------------------
@@ -72,15 +72,11 @@ class TokenResponse(BaseModel):
 
 class AppointmentCreate(BaseModel):
     """Schema para la creación de una nueva cita."""
-    
     doctor_id: int = Field(..., description="ID del doctor que provee la cita.") 
     patient_name: str = Field(..., description="Nombre del paciente.")
     description: Optional[str] = Field(None, description="Descripción de la cita.")
     
-    start_time: datetime = Field(..., description="Hora de inicio de la cita (con zona horaria).")
-    end_time: datetime = Field(..., description="Hora de fin de la cita (con zona horaria).")
-    is_virtual: Optional[bool] = True
-    priority_level: Optional[str] = "MEDIUM"
+    model_config = ConfigDict(extra="forbid")
 
 
 class AppointmentResponse(BaseModel):
@@ -92,19 +88,16 @@ class AppointmentResponse(BaseModel):
     patient: Optional['UserResponse'] = None
     doctor: Optional['UserResponse'] = None
     
-    # Datos de la cita
     start_time: datetime
     end_time: datetime
+    notes: Optional[str] = None
     is_virtual: bool
     priority_level: str
-    description: Optional[str] = None
-    status: str = Field(..., example="SCHEDULED")
-    
-    # Datos de Google
+    status: str
+    video_url: Optional[str] = None
     google_event_id: Optional[str] = None
-    google_meet_link: Optional[str] = Field(None, alias="video_url")
     
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----------------------------------------------------------------------
@@ -118,31 +111,32 @@ class ClinicalRecordBase(BaseModel):
     
     diagnosis: str = Field(..., max_length=255)
     treatment: Optional[str] = Field(None, max_length=500)
-    notes: Optional[str] = Field(None, max_length=2000)
+    notes: Optional[str] = Field(None, max_length=500)
 
 class ClinicalRecordCreate(ClinicalRecordBase):
     """Schema para crear un nuevo registro clínico."""
     pass
 
 class ClinicalRecordUpdate(BaseModel):
-    """Schema para actualizar un registro clínico. Todos los campos son opcionales."""
+    """Schema para actualizar un registro clínico existente."""
     diagnosis: Optional[str] = Field(None, max_length=255)
     treatment: Optional[str] = Field(None, max_length=500)
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=500)
 
 class ClinicalRecordResponse(BaseModel):
     """Schema de respuesta para un registro clínico."""
     id: int
+    patient_id: int
+    doctor_id: int
     record_date: datetime
-    
-    patient: 'UserResponse'
-    doctor: 'UserResponse'
-    
     diagnosis: str
-    treatment: Optional[str]
-    notes: Optional[str]
+    treatment: Optional[str] = None
+    notes: Optional[str] = None
     
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    patient: Optional['UserResponse'] = None
+    doctor: Optional['UserResponse'] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HTTPError(BaseModel):

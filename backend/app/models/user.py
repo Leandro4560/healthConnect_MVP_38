@@ -1,77 +1,30 @@
-# app/models/user.py
 import enum
-from sqlalchemy import Column, String, Enum, Boolean, Text
+from sqlalchemy import Column, String, Integer, Enum as SAEnum, Boolean, Text
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID as SQAlchemyUUID 
-from uuid import uuid4 
-
-from ..database import Base
-
-from .appointment import Appointment 
-from .clinical_record import ClinicalRecord
-from sqlalchemy import Integer 
+from app.models.base import Base
 
 class UserRole(enum.Enum):
-    """Define los roles de usuario disponibles en el sistema."""
     PATIENT = "Patient"
-    DOCTOR = "Doctor" 
+    DOCTOR = "Doctor"
     ADMIN = "Admin"
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(SQAlchemyUUID(as_uuid=True), primary_key=True, default=uuid4) 
-    
-  
-    supabase_id = Column(
-        SQAlchemyUUID(as_uuid=True), 
-        unique=True, 
-        nullable=True, 
-        index=True
-    )
-    
+    id = Column(Integer, primary_key=True, index=True)
+    supabase_id = Column(String, unique=True, nullable=True, index=True)
     full_name = Column(String, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    
-   
-    role = Column(Enum(UserRole), default=UserRole.PATIENT)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(SAEnum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
+    google_refresh_token = Column(Text, nullable=True)
 
-   
-    google_refresh_token = Column(Text, nullable=True) 
-    
-    
-    patient_records = relationship(
-        "ClinicalRecord", 
-        back_populates="patient",
-        foreign_keys=lambda: [ClinicalRecord.patient_id], 
-        lazy="joined",
-        cascade="all, delete-orphan"
-    )
+    # Relaciones (back_populates deben coincidir con los modelos)
+    patient_records = relationship("ClinicalRecord", back_populates="patient", foreign_keys="ClinicalRecord.patient_id", lazy="joined", cascade="all, delete-orphan")
+    doctor_records = relationship("ClinicalRecord", back_populates="doctor", foreign_keys="ClinicalRecord.doctor_id", lazy="joined")
+    patient_appointments = relationship("Appointment", back_populates="patient", foreign_keys="Appointment.patient_id", lazy="joined", cascade="all, delete-orphan")
+    doctor_appointments = relationship("Appointment", back_populates="doctor", foreign_keys="Appointment.doctor_id", lazy="joined")
 
-    doctor_records = relationship(
-        "ClinicalRecord", 
-        back_populates="doctor", 
-        foreign_keys=lambda: [ClinicalRecord.doctor_id],
-        lazy="joined"
-    )
-
-    patient_appointments = relationship(
-        "Appointment", 
-        back_populates="patient", 
-        foreign_keys=lambda: [Appointment.patient_id],
-        lazy="joined",
-        cascade="all, delete-orphan"
-    )
-
-    doctor_appointments = relationship(
-        "Appointment", 
-        back_populates="doctor", 
-        foreign_keys=lambda: [Appointment.doctor_id],
-        lazy="joined"
-    )
-    
     def __repr__(self):
-        return (f"<User(id={self.id}, email='{self.email}', "
-                f"role='{self.role.value}', active={self.is_active})>")
+        return f"<User(id={self.id}, email='{self.email}', role='{self.role.value}', active={self.is_active})>"

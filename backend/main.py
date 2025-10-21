@@ -1,26 +1,19 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from sqlalchemy.exc import OperationalError
-from starlette.middleware.cors import CORSMiddleware
 import logging
 
+from app.database import engine
+from app.models.base import Base  # Base definido en app/models/base.py
+
+# Importa routers (ajusta rutas si es necesario)
+from app.routes import ruta, citas
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-from app.database import Base, engine
-from app.routes import ruta, citas # <-- Importación revertida: quitamos clinical_records
-
-
-try:
-  
-    Base.metadata.create_all(bind=engine)
-    logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
-except OperationalError as e:
-    logger.error(f" Falló la conexión a la base de datos PostgreSQL en el inicio. {e}")
-    
-
+# Crear tablas si no existen (solo en dev; en producción usa Alembic)
+Base.metadata.create_all(bind=engine)
+logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,28 +21,15 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Cerrando FastAPI server...")
 
-app = FastAPI(
-    title="No Country - API de Gestión Médica",
-    version="1.0.0",
-    lifespan=lifespan
-)
+app = FastAPI(title="No Country - API de Gesti\u00f3n M\u00e9dica", version="1.0.0", lifespan=lifespan)
 
-origins = [
-    "*", 
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS y routers (mantén lo que ya tenías)
+from starlette.middleware.cors import CORSMiddleware
+origins = ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(ruta.router, prefix="/api/v1/auth", tags=["Autenticación"])
 app.include_router(citas.router, prefix="/api/v1/appointments", tags=["Citas"])
-# app.include_router(clinical_records.router, prefix="/api/v1", tags=["Registros Clínicos"]) # <-- 2. Router de Registros Clínicos comentado temporalmente
-
 
 @app.get("/")
 def read_root():

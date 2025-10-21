@@ -1,43 +1,39 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import logging
 
-from app.config import settings
-from app.database import engine, Base 
+from app.database import engine                # motor y sesiones
+from app.models.base import Base               # Base está definido en app/models/base.py
 
+# Import routers
+from app.routes import ruta, citas
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# Crear tablas si no existen (solo en dev; en producción usa Alembic)
+Base.metadata.create_all(bind=engine)
+logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
 
-from app.routes import ruta, citas 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Iniciando FastAPI server...")
+    yield
+    logger.info("Cerrando FastAPI server...")
 
+app = FastAPI(title="No Country - API de Gestión Médica", version="1.0.0", lifespan=lifespan)
 
+# CORS
+from starlette.middleware.cors import CORSMiddleware
+origins = ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-app = FastAPI(
-    title="Servicio de Autenticación y Citas",
-    version="1.0.0",
-)
-
-
-origins = [
-    "http://localhost",
-    "http://localhost:3000", 
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-app.include_router(ruta.router, prefix="/auth", tags=["Autenticación"])
-app.include_router(citas.router, prefix="/citas", tags=["Citas Médicas"])
-
+# Routers
+app.include_router(ruta.router, prefix="/api/v1/auth", tags=["Autenticación"])
+app.include_router(citas.router, prefix="/api/v1/appointments", tags=["Citas"])
 
 @app.get("/")
 def read_root():
-    """Ruta de salud simple para verificar que el servicio está activo."""
-    return {"message": "¡Servicio de citas activo!"}
+    return {"message": "API de Gestión Médica funcionando."}
 
 

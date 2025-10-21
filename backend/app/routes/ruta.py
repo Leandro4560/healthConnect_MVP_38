@@ -20,7 +20,7 @@ from app.utils import schemas
 from app.crud import user_crud
 from app.utils import security as auth_security
 from app.utils import auth_utils # Para get_google_login_url, exchange_code_for_tokens, get_google_user_info
-from app.utils.password_utils import verify_password # Se añade para el login con credenciales
+from app.utils.password_utils import verify_password, get_password_hash, needs_update # Se añade para el login con credenciales
 from app.excepciones import BusinessException, CredencialesInvalidas
 from app.models.user import User, UserRole 
 from app.config import settings
@@ -62,6 +62,15 @@ def login_for_access_token(
     # 2. Verificar la contraseña
     if not verify_password(form_data.password, user.hashed_password):
         raise CredencialesInvalidas(detail="Email o contraseña incorrectos.")
+
+    # Si el hash del usuario necesita actualización (p.ej. es pbkdf2) lo re-hasheamos a bcrypt
+    if needs_update(user.hashed_password):
+        # Re-hashear con el esquema por defecto (bcrypt) usando la contraseña que entró el usuario
+        new_hash = get_password_hash(form_data.password)
+        user.hashed_password = new_hash
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
     # 3. Crear el token de acceso
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

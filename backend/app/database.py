@@ -1,36 +1,27 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import os
-
-
-from app.config import settings 
+from app.core.config import settings
 
 DATABASE_URL = settings.DATABASE_URL
 
-
+# Motor SQLAlchemy (ajusta opciones si necesitas Postgres)
 engine = create_engine(
-    DATABASE_URL, 
-    pool_pre_ping=True, 
-    future=True        
+    DATABASE_URL,
+    pool_pre_ping=True,
+    future=True,
 )
-
 
 SessionLocal = sessionmaker(
-    autocommit=False, 
-    autoflush=False, 
-    bind=engine, 
-    future=True
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    future=True,
 )
 
-
-Base = declarative_base()
-
 def get_db():
-    """Dependencia de FastAPI para obtener la sesión de la base de datos."""
+    """Dependencia de FastAPI: yield una sesión y la cierra al final."""
     db = SessionLocal()
     try:
         yield db
     finally:
-        
         db.close()

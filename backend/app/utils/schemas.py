@@ -42,15 +42,14 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     """Schema de salida para los datos del usuario."""
     id: int
-    full_name: str = Field(..., alias="name") # Mapea full_name (modelo) a name (schema)
     email: EmailStr
-    role: str
-    is_active: bool
-    # Cambiar UUID por Optional[str]
-    supabase_id: Optional[str] = None
-    has_google_token: Optional[bool] = None # Campo para el frontend
-    
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
 
 
 class Token(BaseModel):
@@ -72,10 +71,13 @@ class TokenResponse(BaseModel):
 
 class AppointmentCreate(BaseModel):
     """Schema para la creación de una nueva cita."""
-    doctor_id: int = Field(..., description="ID del doctor que provee la cita.") 
-    patient_name: str = Field(..., description="Nombre del paciente.")
-    description: Optional[str] = Field(None, description="Descripción de la cita.")
-    
+    doctor_id: int = Field(..., description="ID del doctor que provee la cita.")
+    start_time: datetime = Field(..., description="Fecha/hora inicio (ISO format)")
+    end_time: datetime = Field(..., description="Fecha/hora fin (ISO format)")
+    is_virtual: bool = Field(default=True, description="Indica si la cita es virtual")
+    priority_level: Optional[str] = Field(None, description="LOW|MEDIUM|HIGH")
+    description: Optional[str] = Field(None, description="Descripción de la cita (opcional)")
+
     model_config = ConfigDict(extra="forbid")
 
 

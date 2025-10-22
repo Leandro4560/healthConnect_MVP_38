@@ -1,25 +1,26 @@
 # app/utils/security.py
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Annotated 
+from typing import Optional
 # Importaciones de terceros
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-# Importaciones locales (de tu proyecto)
-from app.config import settings
 from app.database import get_db
+# importa tu función para obtener usuario o decodificar token
+from app.crud.user_crud import get_user_by_id
+
+from app.config import settings
 from app.models.user import User
-from app.crud import user_crud 
+from app.crud import user_crud
 from app.excepciones import CredencialesInvalidas
-from app.utils.schemas import Token # Importación corregida a Token
+from app.utils.schemas import Token  # Importación corregida a Token
 
 # ----------------------------------------------------------------------
 ## Inicialización de Esquema de Autenticación
 # ----------------------------------------------------------------------
 
-# Esquema de seguridad de OAuth2. El tokenUrl apunta al endpoint de login.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login") 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 # ----------------------------------------------------------------------
 ## Funciones Principales
@@ -28,18 +29,17 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Crea un token de acceso JWT con fecha de expiración."""
     to_encode = data.copy()
-    
+
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        # Usa el valor predeterminado de settings
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    to_encode.update({"exp": expire.timestamp()}) # Asegura que exp sea un timestamp
-    
+
+    to_encode.update({"exp": expire.timestamp()})  # Asegura que exp sea un timestamp
+
     encoded_jwt = jwt.encode(
-        to_encode, 
-        settings.SECRET_KEY, 
+        to_encode,
+        settings.SECRET_KEY,
         algorithm=settings.ALGORITHM
     )
     return encoded_jwt
@@ -47,77 +47,72 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 def decode_access_token(token: str) -> Token:
     """Decodifica el token JWT y retorna los datos."""
-    
     try:
         payload = jwt.decode(
-            token, 
-            settings.SECRET_KEY, 
+            token,
+            settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
-        
+
         user_id = payload.get("user_id")
-        
+
         if user_id is None:
             raise CredencialesInvalidas(detail="Token incompleto: Falta ID de usuario.")
-        
-        # Pydantic validará los datos
+
         token_data = Token(
-            user_id=int(user_id), 
+            user_id=int(user_id),
             role=payload.get("role"),
             exp=datetime.fromtimestamp(payload.get("exp"), tz=timezone.utc)
         )
-        
+
     except JWTError:
-        # Esto captura expiración, firma inválida, etc.
         raise CredencialesInvalidas(detail="Token de acceso inválido o expirado")
     except ValueError:
-        # Captura si user_id no es un entero válido
         raise CredencialesInvalidas(detail="ID de usuario en el token no es válido")
 
     return token_data
 
 
-def get_current_user(
-    db: Session = Depends(get_db), 
-    token: str = Depends(oauth2_scheme)
-) -> User:
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     """
-    Dependencia de FastAPI para obtener el objeto User completo a partir del token JWT.
+    Dependencia correcta: NO usar *args/**kwargs.
+    Decodifica el token, obtiene el user_id y devuelve el User.
     """
-    # 1. Decodificar y validar el token
-    token_data = decode_access_token(token)
+    try:
+        token_data = decode_access_token(token)
+    except CredencialesInvalidas as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
-    # 2. Buscar el usuario en la base de datos
-    user = user_crud.get_user_by_id(db, user_id=token_data.user_id) 
+    user = get_user_by_id(db, token_data.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
 
-    if user is None:
-        raise CredencialesInvalidas(detail="Usuario de la base de datos no encontrado")
-    
-    # El usuario fue encontrado, se retorna
     return user
 
+# Permite usar Depends(CurrentUserDep) en rutas
+CurrentUserDep = get_current_user
 
 # ----------------------------------------------------------------------
 ## Dependencias de Rol (Role Dependencies)
 # ----------------------------------------------------------------------
 
 # Tipo anotado para simplificar la dependencia de obtención de usuario
-CurrentUserDep = Annotated[User, Depends(get_current_user)]
+# CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 def role_required(required_role: str):
     """
     Dependencia factory para requerir un rol específico.
     """
-    def role_checker(current_user: CurrentUserDep) -> User:
-        
-        # Comparamos el valor del Enum con el string del rol requerido
-        if current_user.role.value != required_role:
+    def role_checker(current_user: User = Depends(get_current_user)) -> User:
+        # Comparamos el valor del Enum (o string) con el string del rol requerido
+        role_value = getattr(current_user.role, "value", str(current_user.role))
+        if role_value != required_role:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Requiere el rol '{required_role}' para acceder a este recurso."
             )
         return current_user
-        
+
     return role_checker
 
 # Dependencias predefinidas para roles

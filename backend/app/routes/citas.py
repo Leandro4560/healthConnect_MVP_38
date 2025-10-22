@@ -25,82 +25,21 @@ router = APIRouter(
 @router.post("/", response_model=datos.AppointmentResponse, status_code=status.HTTP_201_CREATED)
 def create_appointment(
     appointment_data: datos.AppointmentCreate,
-    current_user: User = Depends(CurrentUserDep), # El usuario autenticado es el paciente
+    current_user: User = Depends(CurrentUserDep),
     db: Session = Depends(get_db)
 ):
     """
     Crea una nueva cita médica. Solo un paciente puede agendar citas.
-    Si el doctor tiene Google Token, crea un evento en Calendar/Meet.
+    Ahora delega en el CRUD corregido.
     """
-    # Restricción: Solo un paciente puede agendar citas
-    if current_user.role != UserRole.PATIENT: 
+    if current_user.role != UserRole.PATIENT:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los pacientes pueden agendar citas."
         )
 
-    # Validación de tiempo (se puede mejorar con validación de slots disponibles)
-    if appointment_data.start_time <= datetime.now():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La hora de inicio de la cita debe ser en el futuro."
-        )
-
-    # 1. Obtener el doctor
-    doctor = get_user_by_id(db, appointment_data.doctor_id)
-    if not doctor or doctor.role != UserRole.DOCTOR:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Doctor no encontrado o rol incorrecto."
-        )
-
-    # 2. Preparar el modelo de Appointment
-    db_appointment = Appointment(
-        patient_id=current_user.id,
-        doctor_id=appointment_data.doctor_id,
-        start_time=appointment_data.start_time,
-        end_time=appointment_data.end_time,
-        is_virtual=appointment_data.is_virtual,
-        priority_level=AppointmentStatus(appointment_data.priority_level).value if appointment_data.priority_level else AppointmentStatus.PENDIENTE.value,
-        notes=appointment_data.description
-    )
-    
-    # 3. Interacción con Google Calendar 
-    if db_appointment.is_virtual and doctor.google_refresh_token:
-        try:
-            summary = f"Cita {current_user.full_name} ({current_user.email})"
-            description = appointment_data.description or "Cita Médica Virtual"
-            
-            calendar_result = create_google_calendar_event(
-                doctor=doctor,
-                summary=summary,
-                description=description,
-                start_time=db_appointment.start_time,
-                end_time=db_appointment.end_time,
-                patient_email=current_user.email
-            )
-            
-            db_appointment.video_url = calendar_result.get("meet_url")
-            db_appointment.google_event_id = calendar_result.get("event_id")
-            db_appointment.status = AppointmentStatus.SCHEDULED # Agendada en Google
-            
-        except GoogleCalendarError as e:
-            # Si Google falla, se crea en estado PENDIENTE y se registra el error
-            print(f"Error al crear evento de Google Calendar: {e}")
-            db_appointment.status = AppointmentStatus.PENDIENTE 
-            db_appointment.notes = (db_appointment.notes or "") + f" [ERROR CALENDAR: {e.detail}]"
-            
-    else:
-        db_appointment.status = AppointmentStatus.PENDIENTE
-
-
-    # 4. Guardar en DB
-    db.add(db_appointment)
-    db.commit()
-    db.refresh(db_appointment)
-
-    return db_appointment
-
+    created = appointment_crud.create_appointment(db=db, appointment_data=appointment_data, patient=current_user)
+    return created
 
 @router.get("/doctor", response_model=List[datos.AppointmentResponse], dependencies=[Depends(requires_doctor)])
 def get_appointments_for_doctor(
@@ -133,6 +72,82 @@ def get_appointments_for_patient(
     )
     
     return appointments
+
+# Nueva ruta: obtener una cita por id (accesible solo al doctor o paciente involucrado)
+@router.get("/{appointment_id}", response_model=datos.AppointmentResponse)
+def get_appointment_by_id(
+    appointment_id: int,
+    current_user: User = Depends(CurrentUserDep),
+    db: Session = Depends(get_db)
+):
+    """
+    Recupera una cita por su id. Solo el paciente que la creó o el doctor asignado pueden verla.
+    """
+    # Intentar usar el CRUD si existe, si no hacer consulta directa
+    if hasattr(appointment_crud, "get_appointment_by_id"):
+        appointment = appointment_crud.get_appointment_by_id(db, appointment_id)
+    else:
+        appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+
+    if not appointment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cita no encontrada.")
+
+    # Permisos: solo doctor asignado o paciente creador
+    if current_user.role == UserRole.DOCTOR:
+        if appointment.doctor_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para ver esta cita.")
+    elif current_user.role == UserRole.PATIENT:
+        if appointment.patient_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para ver esta cita.")
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Rol no autorizado para esta operación.")
+
+    return appointment
+
+# Nueva ruta: cancelar una cita (patient o doctor asignado pueden cancelar)
+@router.put("/{appointment_id}/cancel", response_model=datos.AppointmentResponse)
+def cancel_appointment(
+    appointment_id: int,
+    current_user: User = Depends(CurrentUserDep),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancela la cita especificada. Solo el paciente que la creó o el doctor asignado pueden cancelarla.
+    No permite cancelar citas en el pasado ni re-cancelar una ya cancelada.
+    """
+    # Obtener cita
+    if hasattr(appointment_crud, "get_appointment_by_id"):
+        appointment = appointment_crud.get_appointment_by_id(db, appointment_id)
+    else:
+        appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+
+    if not appointment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cita no encontrada.")
+
+    # Verificar permisos
+    if current_user.role == UserRole.PATIENT and appointment.patient_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para cancelar esta cita.")
+    if current_user.role == UserRole.DOCTOR and appointment.doctor_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para cancelar esta cita.")
+
+    # Validaciones de estado/tiempo
+    if appointment.status == AppointmentStatus.CANCELED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La cita ya ha sido cancelada.")
+    if appointment.start_time <= datetime.now():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se pueden cancelar citas que ya han comenzado o que están en el pasado.")
+
+    # Delegar al CRUD si existe una función específica que gestione la cancelación (por ejemplo para sincronizar con Google)
+    if hasattr(appointment_crud, "cancel_appointment"):
+        updated = appointment_crud.cancel_appointment(db, appointment_id, canceled_by=current_user)
+        return updated
+
+    # Fallback: actualización simple de estado
+    appointment.status = AppointmentStatus.CANCELED
+    db.add(appointment)
+    db.commit()
+    db.refresh(appointment)
+
+    return appointment
 
 # Podrías añadir la ruta @router.get("/{appointment_id}") para ver una cita específica
 # y @router.put("/{appointment_id}/cancel") para cancelar una cita.

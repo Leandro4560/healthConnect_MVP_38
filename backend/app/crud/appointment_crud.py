@@ -21,26 +21,24 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     Crea una nueva cita en la base de datos y, si es virtual, un evento en Google Calendar
     del doctor asignado.
     """
-    
+    from app.excepciones import BusinessException
+
     patient_id = patient.id
-    
-    
-    video_url = None
-    calendar_event_id = None
-    
-    
+
+    if appointment_data.start_time <= datetime.now():
+        raise BusinessException(400, "La hora de inicio de la cita debe ser en el futuro.")
+
     if not appointment_data.doctor_id:
         raise BusinessException(400, "Debe seleccionar un doctor para agendar la cita.")
 
-    
-    doctor = get_user(db, user_id=appointment_data.doctor_id) 
+    doctor = get_user(db, user_id=appointment_data.doctor_id)
     if not doctor or doctor.role != UserRole.DOCTOR:
         raise BusinessException(404, "Doctor no encontrado o rol incorrecto.")
-        
-    
+
+    # Conflicto de horarios
     existing_appointment = db.query(Appointment).filter(
         Appointment.doctor_id == appointment_data.doctor_id,
-        Appointment.status != AppointmentStatus.CANCELED, 
+        Appointment.status != AppointmentStatus.CANCELED,
         Appointment.start_time < appointment_data.end_time,
         Appointment.end_time > appointment_data.start_time
     ).first()
@@ -48,43 +46,54 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     if existing_appointment:
         raise BusinessException(400, "El doctor no está disponible en ese horario. Por favor, seleccione otro.")
 
-    
+    # Mapear prioridad (si se pasa)
+    if appointment_data.priority_level:
+        try:
+            priority = PriorityLevel[appointment_data.priority_level]
+        except KeyError:
+            # intentar mayúsculas
+            try:
+                priority = PriorityLevel[appointment_data.priority_level.upper()]
+            except Exception:
+                priority = PriorityLevel.MEDIUM
+    else:
+        priority = PriorityLevel.MEDIUM
+
+    video_url = None
+    google_event_id = None
+    status = AppointmentStatus.PENDIENTE
+
     if appointment_data.is_virtual:
         if not doctor.google_refresh_token:
-            
             raise BusinessException(400, "El doctor aún no ha conectado su Google Calendar. No se puede agendar la cita virtual.")
-        
+
         try:
             meet_info = create_google_calendar_event(
                 doctor=doctor,
                 summary=f"Cita con el Dr. {doctor.full_name}",
-                description=f"Videoconsulta agendada con el paciente {patient.full_name}.",
+                description=appointment_data.description or f"Videoconsulta con {patient.full_name}",
                 start_time=appointment_data.start_time,
                 end_time=appointment_data.end_time,
                 patient_email=patient.email
             )
-          
             video_url = meet_info.get('meet_url')
-            calendar_event_id = meet_info.get('event_id') # <-- Captura el ID correctamente
-            
+            google_event_id = meet_info.get('event_id')
+            status = AppointmentStatus.SCHEDULED
         except GoogleCalendarError as e:
-            
-            raise BusinessException(500, f"Error al crear el evento de Google Calendar: {e.detail}")
+            # Si falla Google, dejamos PENDIENTE y devolvemos error lógico
+            raise BusinessException(500, f"Error al crear el evento de Google Calendar: {getattr(e, 'detail', str(e))}")
 
-    
     db_appointment = Appointment(
         patient_id=patient_id,
         doctor_id=appointment_data.doctor_id,
         start_time=appointment_data.start_time,
         end_time=appointment_data.end_time,
         is_virtual=appointment_data.is_virtual,
-        priority_level=appointment_data.priority_level,
-        notes=appointment_data.notes,
-        video_url=video_url, # Usará None si no es virtual
-        # Si la creación del evento de Google fue exitosa, el estado es Scheduled, 
-        # si no es virtual, también es Scheduled.
-        status=AppointmentStatus.SCHEDULED,
-        calendar_event_id=calendar_event_id # Usará None si no es virtual (inicializado en None)
+        priority_level=priority,
+        notes=appointment_data.description,
+        video_url=video_url,
+        status=status,
+        google_event_id=google_event_id
     )
 
     db.add(db_appointment)

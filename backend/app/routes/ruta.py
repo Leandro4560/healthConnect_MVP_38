@@ -11,7 +11,7 @@ import string
 from fastapi.security import OAuth2PasswordRequestForm 
 
 # --- IMPORTS DE SUPABASE ---
-from supabase import create_client, Client 
+from supabase import create_client, Client
 from uuid import UUID
 # ---------------------------
 
@@ -24,14 +24,36 @@ from app.utils.password_utils import verify_password, get_password_hash, needs_u
 from app.excepciones import BusinessException, CredencialesInvalidas
 from app.models.user import User, UserRole 
 from app.config import settings
-from app.utils.security import CurrentUserDep 
 
-# --- INICIALIZACIÓN DEL CLIENTE SUPABASE (usando settings) ---
-SUPABASE_CLIENT: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY_ANON)
+# IMPORTAR CurrentUserDep para la dependencia de perfil
+from app.utils.security import CurrentUserDep
 
-def get_supabase_client() -> Client:
-    """Dependencia para obtener el cliente Supabase."""
+# --- CLIENTE SUPABASE (anon) pero solo si está la key configurada ---
+SUPABASE_CLIENT: Optional[Client] = None
+if getattr(settings, "SUPABASE_KEY_ANON", None):
+    try:
+        SUPABASE_CLIENT = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY_ANON)
+    except Exception as e:
+        SUPABASE_CLIENT = None
+        print("Warning: no se pudo inicializar SUPABASE_CLIENT (anon):", e)
+
+def get_supabase_client() -> Optional[Client]:
+    """
+    Dependencia que devuelve el cliente anon de Supabase o None si no está configurado.
+    No lanza excepción en import time.
+    """
     return SUPABASE_CLIENT
+
+# --- CLIENTE PARA OPERACIONES DE BACKEND (service role), si está disponible ---
+SUPABASE_SERVICE_CLIENT: Optional[Client] = None
+if getattr(settings, "SUPABASE_SERVICE_KEY", None):
+    try:
+        SUPABASE_SERVICE_CLIENT = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
+    except Exception as e:
+        SUPABASE_SERVICE_CLIENT = None
+        print("Warning: no se pudo inicializar SUPABASE_SERVICE_CLIENT (service):", e)
+
+
 # ----------------------------------------------------------
 
 router = APIRouter()
@@ -108,7 +130,7 @@ def google_callback(
     code: str, 
     # state: str, # Normalmente se valida
     db: Session = Depends(get_db),
-    supabase: Client = Depends(get_supabase_client) 
+    supabase: Optional[Client] = Depends(get_supabase_client)
 ):
     """
     Paso 2: Recibe el código de autorización de Google, lo canjea por tokens, 
@@ -189,3 +211,153 @@ def read_current_user(current_user: CurrentUserDep):
     setattr(response_user, 'has_google_token', bool(current_user.google_refresh_token))
 
     return response_user
+
+
+# ----------------------------
+# Endpoint: registrar usuario
+# ----------------------------
+@router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
+def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+    """
+    Registra un usuario localmente y (si está configurado) lo crea en Supabase.
+    - user_in: espera el schema UserCreate (email, name, password, role, ...)
+    """
+    # 1) verificar si ya existe
+    existing = user_crud.get_user_by_email(db, user_in.email)
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email ya registrado.")
+
+    # 2) crear usuario local
+    db_user = user_crud.create_user(db, user_in)
+
+    supabase_id = None
+    supabase_error = None
+    supabase_profile_created = False
+
+    # 3) intentar crear en Supabase con service key (preferible)
+    svc = SUPABASE_SERVICE_CLIENT
+    if svc:
+        try:
+            # 3.a Intentamos crear en Auth (admin.create_user)
+            admin = getattr(svc.auth, "admin", None)
+            created = None
+            if admin and hasattr(admin, "create_user"):
+                try:
+                    # intentamos la firma común (kwargs)
+                    created = admin.create_user(email=user_in.email, password=user_in.password, email_confirm=True)
+                except TypeError:
+                    # fallback si la implementación requiere dict
+                    created = admin.create_user({"email": user_in.email, "password": user_in.password, "email_confirm": True})
+
+                # Extraer id del resultado en distintas formas posibles
+                def _extract_id(obj):
+                    if obj is None:
+                        return None
+                    if isinstance(obj, dict):
+                        # casos: {'user': {...}} o {'id': '...'}
+                        if "id" in obj:
+                            return obj.get("id")
+                        if "user" in obj and isinstance(obj["user"], dict):
+                            return obj["user"].get("id")
+                        if "data" in obj and isinstance(obj["data"], list) and len(obj["data"]) > 0:
+                            # a veces res.data = [ ... ]
+                            first = obj["data"][0]
+                            if isinstance(first, dict):
+                                return first.get("id") or first.get("supabase_id")
+                    # try attributes
+                    user_attr = getattr(obj, "user", None)
+                    if user_attr:
+                        # user_attr puede ser un objeto con id o dict
+                        if hasattr(user_attr, "id"):
+                            return getattr(user_attr, "id")
+                        if isinstance(user_attr, dict):
+                            return user_attr.get("id")
+                    if hasattr(obj, "id"):
+                        return getattr(obj, "id")
+                    # fallback: try 'data' attribute
+                    data_attr = getattr(obj, "data", None)
+                    if data_attr:
+                        try:
+                            if isinstance(data_attr, list) and len(data_attr) > 0:
+                                first = data_attr[0]
+                                if isinstance(first, dict):
+                                    return first.get("id") or first.get("supabase_id")
+                        except Exception:
+                            pass
+                    return None
+
+                supabase_id = _extract_id(created)
+                # guardar posible error que devuelva la librería
+                if isinstance(created, dict):
+                    supabase_error = created.get("error")
+            else:
+                # 3.b Fallback: no admin.create_user disponible -> insertar directamente en tabla 'users' (service key)
+                payload = {
+                    "email": user_in.email,
+                    "full_name": getattr(user_in, "name", None) or getattr(user_in, "full_name", None),
+                    "role": getattr(user_in, "role", None),
+                }
+                try:
+                    res = svc.table("users").insert(payload).execute()
+                    data = getattr(res, "data", None) or (res and res.get("data") if isinstance(res, dict) else None)
+                    if data and isinstance(data, list) and len(data) > 0:
+                        # asumimos que la tabla devuelve el objeto insertado con id
+                        supabase_id = data[0].get("id") or data[0].get("supabase_id")
+                        supabase_profile_created = True
+                    else:
+                        supabase_error = getattr(res, "error", None) or (res and res.get("error") if isinstance(res, dict) else None)
+                except Exception as e:
+                    supabase_error = str(e)
+        except Exception as e:
+            supabase_error = str(e)
+            print("Warning: fallo al crear usuario en Supabase (admin):", e)
+
+        # 3.c Si creamos en Auth (supabase_id obtenido) intentamos crear el profile en la tabla 'users' (id = supabase auth id)
+        if supabase_id and not supabase_profile_created:
+            try:
+                # Calculamos el hash con la utilidad del proyecto (NO almacenamos la contraseña en claro)
+                hashed_for_supabase = get_password_hash(user_in.password)
+
+                # -------------- OPCION A: if your Supabase table `users` has `id` as UUID (recommended)
+                profile_payload = {
+                    "id": supabase_id,  # forzar que la fila de perfil tenga el mismo id que Auth user
+                    "email": user_in.email,
+                    "full_name": getattr(user_in, "name", None) or getattr(user_in, "full_name", None),
+                    "role": getattr(user_in, "role", None),
+                    "hashed_password": hashed_for_supabase,  # <-- añadimos el hash aquí
+                }
+                # -------------- FIN OPCION A
+
+                # Si tu tabla tiene schema distinto (por ejemplo `supabase_id` en vez de `id`), usa:
+                # profile_payload = {
+                #     "supabase_id": supabase_id,
+                #     "email": user_in.email,
+                #     "full_name": ...,
+                #     "role": ...,
+                #     "hashed_password": hashed_for_supabase,
+                # }
+
+                res_profile = svc.table("users").insert(profile_payload).execute()
+                data_profile = getattr(res_profile, "data", None) or (res_profile and res_profile.get("data") if isinstance(res_profile, dict) else None)
+                if data_profile and isinstance(data_profile, list) and len(data_profile) > 0:
+                    supabase_profile_created = True
+                else:
+                    supabase_error = getattr(res_profile, "error", None) or (res_profile and res_profile.get("error") if isinstance(res_profile, dict) else supabase_error)
+            except Exception as e:
+                supabase_error = str(e)
+                print("Warning: fallo al crear profile en tabla 'users':", e)
+
+    # 4) si obtuvimos supabase_id, actualizar la fila local
+    if supabase_id:
+        db_user.supabase_id = supabase_id
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+    else:
+        if supabase_error:
+            print("Supabase create warning/error:", supabase_error)
+
+    # 5) devolver el usuario creado (serializado)
+    # (en logs dejamos info para debugging)
+    print("register_user result -> local_id:", getattr(db_user, "id", None), "supabase_id:", supabase_id, "profile_created:", supabase_profile_created, "error:", supabase_error)
+    return schemas.UserResponse.model_validate(db_user, from_attributes=True)

@@ -28,9 +28,12 @@ class Settings(BaseSettings):
         default=os.getenv("SUPABASE_URL", "https://owmxsumofvrlnjbtrsir.supabase.co")
     )
     SUPABASE_KEY_ANON: str = Field(
-        default=os.getenv("SUPABASE_KEY_ANON", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93bXhzdW1vZnZybG5qYnRyc2lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNjY0MzIsImV4cCI6MjA3NDk0MjQzMn0.ge4T9Skx-zbu0P_v0wOgJcbHu4wPinQnAq8rfcH2gfg")
+        default=os.getenv("SUPABASE_KEY_ANON", "")
     )
-    
+    # NEW: key de servicio (service role) usada por el backend para operaciones admin (crear usuarios, etc.)
+    SUPABASE_SERVICE_KEY: str = Field(
+        default=os.getenv("SUPABASE_SERVICE_KEY", "")
+    )
     
     GOOGLE_CLIENT_ID: str = Field(default=os.getenv("GOOGLE_CLIENT_ID", ""))
     GOOGLE_CLIENT_SECRET: str = Field(default=os.getenv("GOOGLE_CLIENT_SECRET", ""))

@@ -35,11 +35,15 @@ def create_user(db: Session, user_in: UserCreate) -> User:
     
     hashed_password = get_password_hash(user_in.password)
     
+    # obtener dict desde el schema (sin la contraseña)
     user_data = user_in.model_dump(exclude={'password'}, exclude_none=True)
+    
+    # Extraer el campo 'name' (si viene) y evitar pasarlo como keyword inválido al constructor
+    name = user_data.pop('name', None)
     
     db_user = User(
         **user_data, 
-        full_name=user_data['name'], 
+        full_name=name if name is not None else user_data.get('full_name'),
         hashed_password=hashed_password
     )
     

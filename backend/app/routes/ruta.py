@@ -27,6 +27,9 @@ from app.config import settings
 
 # IMPORTAR CurrentUserDep para la dependencia de perfil
 from app.utils.security import CurrentUserDep
+from app.services.supabase_client import insert_user, update_google_refresh_token
+import logging
+logger = logging.getLogger(__name__)
 
 # --- CLIENTE SUPABASE (anon) pero solo si está la key configurada ---
 SUPABASE_CLIENT: Optional[Client] = None
@@ -201,13 +204,13 @@ def google_callback(
 # ----------------------------------------------------------------------
 
 @router.get("/me", response_model=schemas.UserResponse)
-def read_current_user(current_user: CurrentUserDep):
+def read_current_user(current_user: User = Depends(CurrentUserDep)):
     """
     Retorna la información del usuario autenticado (requiere JWT válido).
     """
     response_user = schemas.UserResponse.model_validate(current_user, from_attributes=True)
     
-    # Añadir un campo dinámico para el frontend
+    # Añadir un campo dinámico para el frontend (no modifica la lógica del modelo)
     setattr(response_user, 'has_google_token', bool(current_user.google_refresh_token))
 
     return response_user
@@ -360,4 +363,19 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     # 5) devolver el usuario creado (serializado)
     # (en logs dejamos info para debugging)
     print("register_user result -> local_id:", getattr(db_user, "id", None), "supabase_id:", supabase_id, "profile_created:", supabase_profile_created, "error:", supabase_error)
+    
+    # Sincronizar con Supabase (intenta insertar el usuario en Supabase, no afecta la creación local)
+    try:
+        insert_user({
+            "id": db_user.id,                 # si en supabase usas uuid/auto, omite id
+            "email": db_user.email,
+            "full_name": getattr(db_user, "name", None) or getattr(db_user, "full_name", None),
+            "role": db_user.role,
+            "is_active": db_user.is_active,
+            "created_at": db_user.created_at.isoformat() if db_user.created_at else None,
+            "google_refresh_token": getattr(db_user, "google_refresh_token", None),
+        })
+    except Exception as e:
+        logger.exception("Supabase sync failed (no se afecta la creación local)")
+    
     return schemas.UserResponse.model_validate(db_user, from_attributes=True)

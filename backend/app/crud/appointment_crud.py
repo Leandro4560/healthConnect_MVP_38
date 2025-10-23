@@ -1,19 +1,26 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
-import pytz 
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+from app.config import settings
+from app.excepciones import BusinessException
+import logging
 
 from app.models.appointment import Appointment, PriorityLevel, AppointmentStatus
 from app.models.user import User, UserRole 
 from app.utils import schemas as datos
-from app.excepciones import BusinessException, GoogleCalendarError
-from app.utils.servicios_meet_calendar import create_google_calendar_event
+# Intentar importar la excepción específica de servicios_meet_calendar si existe
+try:
+    from app.utils.servicios_meet_calendar import create_google_calendar_event, GoogleCalendarError
+except Exception:
+    from app.utils.servicios_meet_calendar import create_google_calendar_event
+    class GoogleCalendarError(Exception):
+        pass
+
 from app.crud.user_crud import get_user 
-class Settings:
-    """Configuración simulada para TIME_ZONE_INFO."""
-    
-    TIME_ZONE_INFO = pytz.timezone('UTC') 
-settings = Settings() 
+from app.services.supabase_client import insert_appointment
+
+logger = logging.getLogger(__name__)
 
 
 def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, patient: User) -> Appointment:
@@ -21,12 +28,28 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     Crea una nueva cita en la base de datos y, si es virtual, un evento en Google Calendar
     del doctor asignado.
     """
-    from app.excepciones import BusinessException
-
     patient_id = patient.id
 
-    if appointment_data.start_time <= datetime.now():
-        raise BusinessException(400, "La hora de inicio de la cita debe ser en el futuro.")
+    # Normalizar start_time y end_time y ahora para evitar comparar naive vs aware
+    start_time = appointment_data.start_time
+    end_time = appointment_data.end_time
+
+    # Determinar zona objetivo (desde settings.TIME_ZONE o UTC)
+    try:
+        tz = ZoneInfo(settings.TIME_ZONE)
+    except Exception:
+        tz = timezone.utc
+
+    if start_time.tzinfo is None or start_time.tzinfo.utcoffset(start_time) is None:
+        start_time = start_time.replace(tzinfo=tz)
+    if end_time.tzinfo is None or end_time.tzinfo.utcoffset(end_time) is None:
+        end_time = end_time.replace(tzinfo=tz)
+
+    now = datetime.now(tz=start_time.tzinfo)
+
+    if start_time <= now:
+        # BusinessException espera (status_code, message)
+        raise BusinessException(400, "La fecha/hora de inicio debe ser futura.")
 
     if not appointment_data.doctor_id:
         raise BusinessException(400, "Debe seleccionar un doctor para agendar la cita.")
@@ -35,12 +58,12 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     if not doctor or doctor.role != UserRole.DOCTOR:
         raise BusinessException(404, "Doctor no encontrado o rol incorrecto.")
 
-    # Conflicto de horarios
+    # Conflicto de horarios - usar las fechas normalizadas
     existing_appointment = db.query(Appointment).filter(
         Appointment.doctor_id == appointment_data.doctor_id,
         Appointment.status != AppointmentStatus.CANCELED,
-        Appointment.start_time < appointment_data.end_time,
-        Appointment.end_time > appointment_data.start_time
+        Appointment.start_time < end_time,
+        Appointment.end_time > start_time
     ).first()
 
     if existing_appointment:
@@ -72,8 +95,8 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
                 doctor=doctor,
                 summary=f"Cita con el Dr. {doctor.full_name}",
                 description=appointment_data.description or f"Videoconsulta con {patient.full_name}",
-                start_time=appointment_data.start_time,
-                end_time=appointment_data.end_time,
+                start_time=start_time,
+                end_time=end_time,
                 patient_email=patient.email
             )
             video_url = meet_info.get('meet_url')
@@ -86,8 +109,8 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     db_appointment = Appointment(
         patient_id=patient_id,
         doctor_id=appointment_data.doctor_id,
-        start_time=appointment_data.start_time,
-        end_time=appointment_data.end_time,
+        start_time=start_time,
+        end_time=end_time,
         is_virtual=appointment_data.is_virtual,
         priority_level=priority,
         notes=appointment_data.description,
@@ -99,6 +122,38 @@ def create_appointment(db: Session, appointment_data: datos.AppointmentCreate, p
     db.add(db_appointment)
     db.commit()
     db.refresh(db_appointment)
+
+    # Intentar sincronizar con Supabase (no debe romper la creación local)
+    try:
+        # Obtener los UUIDs de Supabase guardados en los usuarios (si están)
+        patient_supabase_id = getattr(patient, "supabase_id", None)
+        doctor_supabase_id = getattr(doctor, "supabase_id", None)
+
+        payload = {
+            "start_time": db_appointment.start_time.isoformat(),
+            "end_time": db_appointment.end_time.isoformat(),
+            "is_virtual": bool(db_appointment.is_virtual),
+            "priority_level": db_appointment.priority_level.name if hasattr(db_appointment.priority_level, "name") else str(db_appointment.priority_level),
+            "notes": db_appointment.notes,
+            "status": db_appointment.status.name if hasattr(db_appointment.status, "name") else str(db_appointment.status),
+            "video_url": db_appointment.video_url,
+            "google_event_id": db_appointment.google_event_id
+        }
+
+        # Añadir sólo si tenemos los UUIDs de Supabase (las columnas en Supabase esperan UUID)
+        if patient_supabase_id:
+            payload["patient_id"] = str(patient_supabase_id)
+        if doctor_supabase_id:
+            payload["doctor_id"] = str(doctor_supabase_id)
+
+        # Si ninguno de los dos UUID está disponible, omitimos la inserción en Supabase
+        if "patient_id" in payload or "doctor_id" in payload:
+            insert_appointment(payload)
+        else:
+            logger.warning("No se encontró supabase_id para patient/doctor — sincronización con Supabase omitida.")
+    except Exception:
+        # ya fue logged en supabase_client; no interrumpe la respuesta a cliente
+        pass
 
     return db_appointment
 
@@ -119,8 +174,11 @@ def get_appointments_by_patient(db: Session, patient_id: int, include_past: bool
     ).order_by(Appointment.start_time.asc()) 
 
     if not include_past:
-        
-        now_with_tz = datetime.now(settings.TIME_ZONE_INFO)
+        try:
+            tz = ZoneInfo(settings.TIME_ZONE)
+        except Exception:
+            tz = timezone.utc
+        now_with_tz = datetime.now(tz)
         query = query.filter(Appointment.start_time >= now_with_tz)
 
     return query.all()
@@ -135,8 +193,11 @@ def get_appointments_by_doctor(db: Session, doctor_id: int, include_past: bool =
     ).order_by(Appointment.start_time.asc()) 
 
     if not include_past:
-        
-        now_with_tz = datetime.now(settings.TIME_ZONE_INFO)
+        try:
+            tz = ZoneInfo(settings.TIME_ZONE)
+        except Exception:
+            tz = timezone.utc
+        now_with_tz = datetime.now(tz)
         query = query.filter(Appointment.start_time >= now_with_tz)
 
     return query.all()

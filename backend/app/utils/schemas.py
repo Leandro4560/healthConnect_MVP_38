@@ -48,8 +48,11 @@ class UserResponse(BaseModel):
     is_active: bool = True
     created_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+    # Nuevo campo para indicar si el usuario tiene token de Google (opcional)
+    has_google_token: Optional[bool] = False
+
+    # Usar ConfigDict v2 para compatibilidad con pydantic v2
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Token(BaseModel):
@@ -63,6 +66,7 @@ class TokenResponse(BaseModel):
     """Schema para la respuesta del token JWT."""
     access_token: str
     token_type: str
+    user: Optional[UserResponse] = None
 
 
 # ----------------------------------------------------------------------

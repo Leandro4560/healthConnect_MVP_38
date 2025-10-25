@@ -4,6 +4,8 @@ import { MdOutlineEmail } from "react-icons/md";
 import { MdOutlineVisibilityOff } from "react-icons/md";
 import { MdOutlineVisibility } from "react-icons/md";
 import { useValidationsFormRegister } from "../../hooks/useValidationsFormRegister";
+import { userAuth } from "../../context/Authcontext";
+import { useNavigate } from "react-router-dom";
 
 const RegisterForm = () => {
   const initialForm = {
@@ -19,6 +21,10 @@ const RegisterForm = () => {
 
   const { errors, handleOnBlur } = useValidationsFormRegister();
   const [emptyValidInputs, setEmptyValidInputs] = useState(false);
+  const { register } = userAuth();
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
+  const [registerError, setRegisterError] = useState(null);
 
   const handleChangeVisibility = () => {
     setVisibilityInput(!visibilityInput);
@@ -55,7 +61,25 @@ const RegisterForm = () => {
     setEmptyValidInputs(false);
 
     if (hasNoErrors) {
-      console.log(formRegister);
+      (async () => {
+        try {
+          setSubmitting(true);
+          setRegisterError(null);
+          const payload = {
+            email: formRegister.email,
+            name: formRegister.name,
+            password: formRegister.password,
+            role: "patient",
+          };
+          await register(payload);
+          // Después de registrar, redirigir al login
+          navigate("/login", { replace: true });
+        } catch (err) {
+          setRegisterError(err.message || "Error al registrarse");
+        } finally {
+          setSubmitting(false);
+        }
+      })();
     }
   };
 
@@ -177,9 +201,11 @@ const RegisterForm = () => {
         )}
         <button
           type="submit"
-          className="w-64 h-10 text-lg tracking-wide bg-primary-300 text-white rounded-lg duration-500 ease-out hover:bg-primary-200 hover:text-primary-700">
-          Registrate
+          disabled={submitting}
+          className="w-64 h-10 text-lg tracking-wide bg-primary-300 text-white rounded-lg duration-500 ease-out hover:bg-primary-200 hover:text-primary-700 disabled:opacity-50">
+          {submitting ? "Registrando..." : "Registrate"}
         </button>
+        {registerError ? <p className={styleInputError}>{registerError}</p> : null}
       </form>
     </div>
   );

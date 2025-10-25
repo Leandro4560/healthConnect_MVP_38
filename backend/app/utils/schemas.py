@@ -66,6 +66,7 @@ class TokenResponse(BaseModel):
     """Schema para la respuesta del token JWT."""
     access_token: str
     token_type: str
+    refresh_token: Optional[str] = None
     user: Optional[UserResponse] = None
 
 
@@ -106,9 +107,7 @@ class AppointmentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# ----------------------------------------------------------------------
-# Schemas para Registros Clínicos
-# ----------------------------------------------------------------------
+
 
 class ClinicalRecordBase(BaseModel):
     """Schema base para el contenido del registro clínico."""

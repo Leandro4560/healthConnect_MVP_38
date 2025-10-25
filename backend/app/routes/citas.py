@@ -149,5 +149,3 @@ def cancel_appointment(
 
     return appointment
 
-# Podrías añadir la ruta @router.get("/{appointment_id}") para ver una cita específica
-# y @router.put("/{appointment_id}/cancel") para cancelar una cita.

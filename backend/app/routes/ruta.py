@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Optional
 from fastapi.responses import RedirectResponse
+import urllib.parse
 from sqlalchemy.orm import Session
 from datetime import timedelta
 import secrets  
@@ -30,6 +31,7 @@ from app.utils.security import CurrentUserDep
 from app.services.supabase_client import insert_user, update_google_refresh_token
 import logging
 logger = logging.getLogger(__name__)
+import secrets as _secrets
 
 # --- CLIENTE SUPABASE (anon) pero solo si está la key configurada ---
 SUPABASE_CLIENT: Optional[Client] = None
@@ -65,6 +67,9 @@ def generate_random_password(length=12) -> str:
     """Genera una contraseña aleatoria para usuarios creados por Google OAuth."""
     characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(secrets.choice(characters) for i in range(length))
+
+def _generate_refresh_token() -> str:
+    return _secrets.token_urlsafe(48)
 
 # ----------------------------------------------------------------------
 # ENDPOINTS DE AUTENTICACIÓN
@@ -103,12 +108,18 @@ def login_for_access_token(
         data={"user_id": user.id, "role": user.role.value},
         expires_delta=access_token_expires
     )
-    
-    # 4. Retornar el token y la info del usuario
+    # Generar refresh token y guardarlo en la DB
+    refresh = _generate_refresh_token()
+    user.refresh_token = refresh
+    db.add(user)
+    db.commit()
+
+    # 4. Retornar el token, refresh y la info del usuario
     return schemas.TokenResponse(
         access_token=access_token, 
         token_type="bearer",
-        user=schemas.UserResponse.model_validate(user, from_attributes=True) 
+        refresh_token=refresh,
+        user=schemas.UserResponse.model_validate(user, from_attributes=True)
     )
 
 
@@ -181,11 +192,27 @@ def google_callback(
             data={"user_id": user.id, "role": user.role.value},
             expires_delta=access_token_expires
         )
-        
-        # 7. Retornar el token y la info del usuario
+
+        # Generar refresh token y guardarlo
+        refresh = _generate_refresh_token()
+        user.refresh_token = refresh
+        db.add(user)
+        db.commit()
+
+        # 7. Si hay FRONTEND_URL, redirigimos al frontend con el token y refresh en query param
+        frontend = getattr(settings, "FRONTEND_URL", None)
+        if frontend:
+            # usamos quote_plus para evitar problemas con caracteres
+            token_qs = urllib.parse.quote_plus(access_token)
+            refresh_qs = urllib.parse.quote_plus(refresh)
+            redirect_url = f"{frontend.rstrip('/')}" + f"/auth/success?token={token_qs}&refresh={refresh_qs}"
+            return RedirectResponse(url=redirect_url)
+
+        # Fallback: retornar JSON con token
         return schemas.TokenResponse(
-            access_token=access_token, 
+            access_token=access_token,
             token_type="bearer",
+            refresh_token=refresh,
             user=schemas.UserResponse.model_validate(user, from_attributes=True)
         )
 
@@ -216,6 +243,42 @@ def read_current_user(current_user: User = Depends(CurrentUserDep)):
     return response_user
 
 
+# Endpoint para refresh de tokens
+@router.post("/refresh", response_model=schemas.TokenResponse)
+def refresh_access_token(refresh_data: dict, db: Session = Depends(get_db)):
+    """
+    Refresh the access token given a refresh_token in body: {"refresh_token": "..."}
+    Returns a new access_token and rotated refresh_token.
+    """
+    token = refresh_data.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="refresh_token required")
+
+    user = user_crud.get_user_by_refresh_token(db, token)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido")
+
+    # generar nuevo access token
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth_security.create_access_token(
+        data={"user_id": user.id, "role": user.role.value},
+        expires_delta=access_token_expires,
+    )
+
+    # rotar refresh token
+    new_refresh = _generate_refresh_token()
+    user.refresh_token = new_refresh
+    db.add(user)
+    db.commit()
+
+    return schemas.TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        refresh_token=new_refresh,
+        user=schemas.UserResponse.model_validate(user, from_attributes=True),
+    )
+
+
 # ----------------------------
 # Endpoint: registrar usuario
 # ----------------------------
@@ -229,6 +292,30 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     existing = user_crud.get_user_by_email(db, user_in.email)
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email ya registrado.")
+
+    # Normalizar posibles roles en español/variantes a los valores esperados por el Enum
+    role_val = getattr(user_in, "role", None)
+    if role_val:
+        role_map = {
+            # Spanish inputs -> SQLAlchemy enum member names
+            "PACIENTE": "PATIENT",
+            "PACIENT": "PATIENT",
+            "PATIENT": "PATIENT",
+            "PATIENTE": "PATIENT",
+            "DOCTOR": "DOCTOR",
+            "MEDICO": "DOCTOR",
+            "ADMIN": "ADMIN",
+            "ADMINISTRADOR": "ADMIN",
+            "ADMINISTRACION": "ADMIN",
+        }
+        try:
+            # uppercase for matching
+            mapped = role_map.get(str(role_val).upper(), None)
+            if mapped:
+                # asignar el nombre del miembro del Enum (ej. 'PATIENT')
+                user_in.role = mapped
+        except Exception:
+            pass
 
     # 2) crear usuario local
     db_user = user_crud.create_user(db, user_in)
@@ -329,16 +416,7 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
                     "role": getattr(user_in, "role", None),
                     "hashed_password": hashed_for_supabase,  # <-- añadimos el hash aquí
                 }
-                # -------------- FIN OPCION A
-
-                # Si tu tabla tiene schema distinto (por ejemplo `supabase_id` en vez de `id`), usa:
-                # profile_payload = {
-                #     "supabase_id": supabase_id,
-                #     "email": user_in.email,
-                #     "full_name": ...,
-                #     "role": ...,
-                #     "hashed_password": hashed_for_supabase,
-                # }
+                
 
                 res_profile = svc.table("users").insert(profile_payload).execute()
                 data_profile = getattr(res_profile, "data", None) or (res_profile and res_profile.get("data") if isinstance(res_profile, dict) else None)
@@ -372,10 +450,21 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
             "full_name": getattr(db_user, "name", None) or getattr(db_user, "full_name", None),
             "role": db_user.role,
             "is_active": db_user.is_active,
-            "created_at": db_user.created_at.isoformat() if db_user.created_at else None,
+                "created_at": getattr(db_user, "created_at", None).isoformat() if getattr(db_user, "created_at", None) else None,
             "google_refresh_token": getattr(db_user, "google_refresh_token", None),
         })
     except Exception as e:
         logger.exception("Supabase sync failed (no se afecta la creación local)")
     
+    # generar refresh token para el usuario creado y almacenarlo
+    try:
+        refresh = _generate_refresh_token()
+        db_user.refresh_token = refresh
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+    except Exception:
+        # no bloqueamos la creación por fallo en refresh token
+        pass
+
     return schemas.UserResponse.model_validate(db_user, from_attributes=True)

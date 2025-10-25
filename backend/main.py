@@ -4,6 +4,8 @@ import logging
 
 from app.database import engine
 from app.models.base import Base  # Base definido en app/models/base.py
+from app.core.config import settings
+import os
 
 # Importa routers (ajusta rutas si es necesario)
 from app.routes import ruta, citas
@@ -14,6 +16,15 @@ logger = logging.getLogger(__name__)
 # Crear tablas si no existen (solo en dev; en producción usa Alembic)
 Base.metadata.create_all(bind=engine)
 logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
+try:
+    logger.info(f"DATABASE_URL used: {settings.DATABASE_URL}")
+    # Si es sqlite con ruta relativa, mostramos la ruta absoluta para aclarar
+    if settings.DATABASE_URL.startswith("sqlite"):
+        path = settings.DATABASE_URL.replace("sqlite://", "")
+        abs_path = os.path.abspath(path)
+        logger.info(f"Resolved SQLite file path: {abs_path}")
+except Exception:
+    logger.exception("Error al obtener DATABASE_URL para logging")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

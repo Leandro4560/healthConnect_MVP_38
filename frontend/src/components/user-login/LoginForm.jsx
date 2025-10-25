@@ -8,7 +8,7 @@ import ImgGoggle from "../../assets/google.svg";
 import { Link } from "react-router-dom";
 
 const LoginForm = () => {
-  const { signInWithGoogle } = userAuth();
+  const { signInWithGoogle, login } = userAuth();
   const initialForm = {
     email: "",
     password: "",
@@ -19,6 +19,8 @@ const LoginForm = () => {
 
   const { errors, handleOnBlur } = useValidationsFormRegister();
   const [emptyValidInputs, setEmptyValidInputs] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState(null);
 
   const handleChangeVisibility = () => {
     setVisibilityInput(!visibilityInput);
@@ -35,7 +37,6 @@ const LoginForm = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
     const hasNoErrors = !Object.values(errors).some((v) => v === true);
 
     if (!formLogin.email || !formLogin.password) {
@@ -46,7 +47,18 @@ const LoginForm = () => {
     setEmptyValidInputs(false);
 
     if (hasNoErrors) {
-      console.log(formLogin);
+      // Intentar login usando el contexto
+      (async () => {
+        try {
+          setSubmitting(true);
+          setLoginError(null);
+          await login(formLogin.email, formLogin.password);
+        } catch (err) {
+          setLoginError(err.message || "Error al iniciar sesión");
+        } finally {
+          setSubmitting(false);
+        }
+      })();
     }
   };
 
@@ -123,9 +135,11 @@ const LoginForm = () => {
 
         <button
           type="submit"
-          className="w-64 h-10 text-lg tracking-wide bg-primary-300 text-white rounded-lg duration-500 ease-out hover:bg-primary-200 hover:text-primary-700">
-          Inicia sesión
+          disabled={submitting}
+          className="w-64 h-10 text-lg tracking-wide bg-primary-300 text-white rounded-lg duration-500 ease-out hover:bg-primary-200 hover:text-primary-700 disabled:opacity-50">
+          {submitting ? "Cargando..." : "Inicia sesión"}
         </button>
+        {loginError ? <p className={styleInputError}>{loginError}</p> : null}
       </form>
 
       <hr className="w-2xs my-3 md:w-[480px]  " />

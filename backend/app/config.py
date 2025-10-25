@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = Field(default=os.getenv("GOOGLE_CLIENT_ID", ""))
     GOOGLE_CLIENT_SECRET: str = Field(default=os.getenv("GOOGLE_CLIENT_SECRET", ""))
     GOOGLE_REDIRECT_URI: str = Field(default=os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback"))
+    FRONTEND_URL: str = Field(default=os.getenv("FRONTEND_URL", "http://localhost:5173"))
     
     
     TIME_ZONE: str = Field(default=os.getenv("TIME_ZONE", "America/Bogota"))
@@ -46,8 +47,9 @@ class Settings(BaseSettings):
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile"
     ]
-    
-    
+    # Alias para compatibilidad con otros módulos
+    GOOGLE_SCOPES: list[str] = GOOGLE_CALENDAR_SCOPES
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

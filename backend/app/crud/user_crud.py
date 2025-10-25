@@ -73,3 +73,10 @@ def update_user(db: Session, db_user: User, user_update: UserUpdate) -> User:
     db.refresh(db_user)
     
     return db_user
+
+
+def get_user_by_refresh_token(db: Session, refresh_token: str) -> Optional[User]:
+    """
+    Busca un usuario por su refresh_token.
+    """
+    return db.query(User).filter(User.refresh_token == refresh_token).first()

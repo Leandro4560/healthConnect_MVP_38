@@ -7,6 +7,7 @@ from app.models.base import Base               # Base está definido en app/mode
 
 # Import routers
 from app.routes import ruta, citas
+from app.routes import admin
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True
 # Routers
 app.include_router(ruta.router, prefix="/api/v1/auth", tags=["Autenticación"])
 app.include_router(citas.router, prefix="/api/v1/appointments", tags=["Citas"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 
 @app.get("/")
 def read_root():

@@ -19,6 +19,8 @@ class User(Base):
     role = Column(SAEnum(UserRole), default=UserRole.PATIENT)
     is_active = Column(Boolean, default=True)
     google_refresh_token = Column(Text, nullable=True)
+    # Token de refresh para el sistema de autenticación local
+    refresh_token = Column(String, nullable=True, index=True)
 
     # Relaciones (back_populates deben coincidir con los modelos)
     patient_records = relationship("ClinicalRecord", back_populates="patient", foreign_keys="ClinicalRecord.patient_id", lazy="joined", cascade="all, delete-orphan")

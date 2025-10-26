@@ -1,61 +1,63 @@
 steps:
 
   # ====================================================================
-  # 1. Construir y Subir la Imagen del BACKEND
-  #    - Usa el Dockerfile ubicado en 'backend/scripts/'
+  # 1. Construir y Subir la Imagen del BACKEND (CORREGIDO: Push URL)
   # ====================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Backend'
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA'
-      - 'backend/scripts' # Directorio donde se encuentra el Dockerfile del Backend
-    dir: '.'
-  
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/backend:$COMMIT_SHA' # <-- Usa Artifact Registry
+      - '--file=scripts/Dockerfile'
+      - '.' # Contexto es 'backend'
+    dir: 'backend'
+    
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push Backend'
-    args: ['push', 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA']
-    dir: '.'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/backend:$COMMIT_SHA' # <-- CORREGIDO: Push a Artifact Registry
 
   # ====================================================================
-  # 2. Construir y Subir la Imagen del FRONTEND
-  #    - Usa el Dockerfile ubicado en 'frontend/src/'
+  # 2. Construir y Subir la Imagen del FRONTEND (CORREGIDO: Push URL)
   # ====================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Frontend'
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA'
-      - 'frontend/src' # Directorio donde se encuentra el Dockerfile del Frontend
-    dir: '.'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/frontend:$COMMIT_SHA' # <-- Usa Artifact Registry
+      - '--file=src/Dockerfile' 
+      - '.' # Contexto es 'frontend'
+    dir: 'frontend'
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push Frontend'
-    args: ['push', 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA']
-    dir: '.'
+    args:
+      - 'push'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/frontend:$COMMIT_SHA' # <-- Push a Artifact Registry
 
   # ====================================================================
-  # 3. Desplegar el BACKEND en Cloud Run (usando la variable de entorno)
+  # 3. Desplegar el BACKEND en Cloud Run (MANTIENE TU URL EXPUESTA)
   # ====================================================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy Backend'
-    entrypoint: gcloud
+    entrypoint: gcloud 
     args:
       - 'run'
       - 'deploy'
       - 'backend'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/backend:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'DATABASE_URL=${_DATABASE_URL}' # Utiliza la variable de sustitución que definirás
-
+      - 'DATABASE_URL=${_DATABASE_URL}' # Utiliza la variable de sustitución
+      
   # ====================================================================
   # 4. Desplegar el FRONTEND en Cloud Run
   # ====================================================================
@@ -67,7 +69,7 @@ steps:
       - 'deploy'
       - 'frontend'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/frontend:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
       - '--platform'
@@ -75,18 +77,12 @@ steps:
       - '--allow-unauthenticated'
 
 # ====================================================================
-# Imágenes para la limpieza de GCR
-# ====================================================================
-images:
-  - 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA'
-  - 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA'
-
-# ====================================================================
-# Variables de Sustitución (Necesarias para la URL de la DB)
+# Variables de Sustitución (CRÍTICO: TU URL DE BASE DE DATOS)
 # ====================================================================
 substitutions:
-    # Debes definir el valor de esta variable en la configuración del activador
-    # de Cloud Build para tu URL de base de datos real.
-    _DATABASE_URL: postgresql://postgres.owmxsumofvrlnjbtrsir:fjIWOnVXmZOtjfpq@aws-1-us-east-2.pooler.supabase.com:6543/postgres
+    # URL DE LA BASE DE DATOS INSERTADA AQUÍ (Expuesta en el repositorio)
+    _DATABASE_URL: 'postgresql://postgres.owmxsumofvrlnjbtrsir:fjIWOnVXmZOtjfpq@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
+    
 options:
+  # CORRECCIÓN DE FALLO CRÍTICO DE LOGGING (Soluciona image_042105.png)
   logging: CLOUD_LOGGING_ONLY

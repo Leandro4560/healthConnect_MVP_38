@@ -3,10 +3,13 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      # Mapeo: Puerta LOCAL (acceso) : Puerta CONTENEDOR (escucha)
+      - "8000:8080" # <-- CAMBIADO: La app escucha en 8080, pero accedes por 8000
     environment:
-      - PORT=8000
+      # Establecer la variable de entorno interna que el backend usará
+      - PORT=8080 # <-- CAMBIADO: Se alinea con el valor por defecto de Cloud Run
   frontend:
     build: ./frontend
     ports:
+      # Mapeo: Puerta LOCAL (acceso) : Puerta CONTENEDOR (escucha)
       - "3000:80"

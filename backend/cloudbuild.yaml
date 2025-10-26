@@ -1,6 +1,6 @@
 steps:
   # ----------------------------------------------------
-  # Paso 0 & 1: Construir y Empujar Imagen Docker del BACKEND (Python/FastAPI)
+  # Paso 0 & 1: Construir y Empujar Imagen Docker del BACKEND
   # ----------------------------------------------------
 - name: 'gcr.io/cloud-builders/docker'
   id: 'Build Backend'
@@ -20,7 +20,7 @@ steps:
     ]
 
   # ----------------------------------------------------
-  # Paso 2 & 3: Instalar dependencias y Compilar el FRONTEND (Vite/React)
+  # Paso 2 & 3: Instalar dependencias y Compilar el FRONTEND
   # ----------------------------------------------------
 - name: node:20
   id: 'Install Frontend Dependencies'
@@ -32,7 +32,7 @@ steps:
   args: ['run', 'build']
 
   # ----------------------------------------------------
-  # Paso 4 & 5: Construir y Empujar Imagen Docker del FRONTEND (Nginx)
+  # Paso 4 & 5: Construir y Empujar Imagen Docker del FRONTEND
   # ----------------------------------------------------
 - name: 'gcr.io/cloud-builders/docker'
   id: 'Build Frontend Image'
@@ -54,7 +54,8 @@ steps:
     ]
 
   # ----------------------------------------------------
-  # Paso 6: Desplegar el BACKEND en Cloud Run (¡Corrección del puerto!)
+  # Paso 6: Desplegar el BACKEND en Cloud Run (Ahora usa 8080 internamente)
+  # Se ELIMINA el argumento --port 8000
   # ----------------------------------------------------
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: 'Deploy Backend'
@@ -73,12 +74,10 @@ steps:
       '--allow-unauthenticated',
       '--service-account',
       '774803047672-compute@developer.gserviceaccount.com',
-      '--port', # **NUEVA LÍNEA**
-      '8000',   # **NUEVA LÍNEA**
     ]
 
   # ----------------------------------------------------
-  # Paso 7: Desplegar el FRONTEND en Cloud Run
+  # Paso 7: Desplegar el FRONTEND en Cloud Run (Se mantiene el puerto 80)
   # ----------------------------------------------------
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: 'Deploy Frontend'
@@ -97,6 +96,6 @@ steps:
       '--allow-unauthenticated',
       '--service-account',
       '774803047672-compute@developer.gserviceaccount.com',
-      '--port', # El frontend (Nginx) usa por defecto el puerto 80, puedes dejar el default o añadir 80.
-      '80',     # Nginx usa por defecto el puerto 80
+      '--port', 
+      '80',     # Puerto 80 para Nginx
     ]

@@ -1,6 +1,7 @@
 steps:
   # ====================================================================
   # 1. Construir y Subir la Imagen del BACKEND
+  #    - Usa el Dockerfile ubicado en 'backend/scripts/'
   # ====================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Backend'
@@ -8,7 +9,7 @@ steps:
       - 'build'
       - '-t'
       - 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA'
-      - 'backend/scripts' # Directorio que contiene el Dockerfile
+      - 'backend/scripts' # Directorio donde se encuentra el Dockerfile del Backend
     dir: '.'
   
   - name: 'gcr.io/cloud-builders/docker'
@@ -18,6 +19,7 @@ steps:
 
   # ====================================================================
   # 2. Construir y Subir la Imagen del FRONTEND
+  #    - Usa el Dockerfile ubicado en 'frontend/src/'
   # ====================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Frontend'
@@ -25,7 +27,7 @@ steps:
       - 'build'
       - '-t'
       - 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA'
-      - 'frontend/src' # Directorio que contiene el Dockerfile
+      - 'frontend/src' # Directorio donde se encuentra el Dockerfile del Frontend
     dir: '.'
 
   - name: 'gcr.io/cloud-builders/docker'
@@ -34,7 +36,7 @@ steps:
     dir: '.'
 
   # ====================================================================
-  # 3. Desplegar el BACKEND en Cloud Run (USANDO SECRET MANAGER)
+  # 3. Desplegar el BACKEND en Cloud Run (usando la variable de entorno)
   # ====================================================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy Backend'
@@ -50,11 +52,8 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
-      - '--set-secrets' # Usa el comando para inyectar secretos
-      - 'DATABASE_URL=[SECRET_NAME]:latest' # Reemplaza [SECRET_NAME] con el nombre que le diste a tu secreto (ej: 'backend-database-url')
-    # Declara la variable de entorno que será poblada por el secreto.
-    # El valor REAL nunca se expone en los logs de Cloud Build.
-    secretEnv: ['DATABASE_URL'] 
+      - '--set-env-vars'
+      - 'DATABASE_URL=${_DATABASE_URL}' # Utiliza la variable de sustitución que definirás
 
   # ====================================================================
   # 4. Desplegar el FRONTEND en Cloud Run
@@ -75,11 +74,16 @@ steps:
       - '--allow-unauthenticated'
 
 # ====================================================================
-# Imágenes a guardar en Container Registry/Artifact Registry
+# Imágenes para la limpieza de GCR
 # ====================================================================
 images:
   - 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA'
 
-# La sección 'substitutions' ya no es necesaria, pero la dejamos para referencia.
-# Si solo usas variables predefinidas como $PROJECT_ID y $COMMIT_SHA, no necesitas esta sección.
+# ====================================================================
+# Variables de Sustitución (Necesarias para la URL de la DB)
+# ====================================================================
+substitutions:
+    # Debes definir el valor de esta variable en la configuración del activador
+    # de Cloud Build para tu URL de base de datos real.
+    _DATABASE_URL: postgresql://postgres.owmxsumofvrlnjbtrsir:fjIWOnVXmZOtjfpq@aws-1-us-east-2.pooler.supabase.com:6543/postgres

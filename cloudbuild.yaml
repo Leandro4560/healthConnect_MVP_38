@@ -1,4 +1,5 @@
 steps:
+
   # ====================================================================
   # 1. Construir y Subir la Imagen del BACKEND
   #    - Usa el Dockerfile ubicado en 'backend/scripts/'
@@ -87,3 +88,5 @@ substitutions:
     # Debes definir el valor de esta variable en la configuración del activador
     # de Cloud Build para tu URL de base de datos real.
     _DATABASE_URL: postgresql://postgres.owmxsumofvrlnjbtrsir:fjIWOnVXmZOtjfpq@aws-1-us-east-2.pooler.supabase.com:6543/postgres
+options:
+  logging: CLOUD_LOGGING_ONLY

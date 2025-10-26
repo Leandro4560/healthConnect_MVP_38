@@ -74,9 +74,7 @@ steps:
       - '--set-env-vars'
       - 'DATABASE_URL=${_DATABASE_URL}'
 
-  # ====================================================================
-  # 5. Desplegar el FRONTEND en Cloud Run
-  # ====================================================================
+  
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy Frontend'
     entrypoint: gcloud
@@ -96,7 +94,7 @@ steps:
 # Variables de Sustitución y Opciones
 # ====================================================================
 substitutions:
-    # Esta es la variable que pasará a tu servicio de backend.
+    
     _DATABASE_URL: 'postgresql://postgres.owmxsumofvrlnjbtrsir:fjIWOnVXmZOtjfpq@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
 
 options:

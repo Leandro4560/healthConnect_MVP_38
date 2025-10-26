@@ -54,9 +54,7 @@ steps:
       - 'push'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA'
 
-  # ====================================================================
-  # 4. Desplegar el BACKEND en Cloud Run
-  # ====================================================================
+  
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy Backend'
     entrypoint: gcloud

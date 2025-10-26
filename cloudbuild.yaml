@@ -90,9 +90,7 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
 
-# ====================================================================
-# Variables de Sustitución y Opciones
-# ====================================================================
+
 substitutions:
     
     _DATABASE_URL: 'postgresql://postgres.owmxsumofvrlnjbtrsir:fjIWOnVXmZOtjfpq@aws-1-us-east-2.pooler.supabase.com:6543/postgres'

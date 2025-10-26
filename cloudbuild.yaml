@@ -1,33 +1,33 @@
 steps:
 
   # ====================================================================
-  # 1. Construir y Subir la Imagen del BACKEND (CORREGIDO: Ruta del Dockerfile)
+  # 1. Construir y Subir la Imagen del BACKEND (CORREGIDO: Nombre del Repositorio)
   # ====================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Backend'
     args:
       - 'build'
       - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/backend:$COMMIT_SHA' # Usando Artifact Registry
-      - '--file=Dockerfile'  # <--- CORRECCIÓN FINAL: El Dockerfile está en /backend/Dockerfile
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA' # <-- REPOSITORIO CORREGIDO
+      - '--file=Dockerfile' 
       - '.' 
-    dir: 'backend' # Contexto es /backend
+    dir: 'backend'
     
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push Backend'
     args:
       - 'push'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/backend:$COMMIT_SHA' # Push a Artifact Registry
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA' # <-- REPOSITORIO CORREGIDO
 
   # ====================================================================
-  # 2. Construir y Subir la Imagen del FRONTEND (CORREGIDO: Push URL)
+  # 2. Construir y Subir la Imagen del FRONTEND (CORREGIDO: Nombre del Repositorio)
   # ====================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Frontend'
     args:
       - 'build'
       - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/frontend:$COMMIT_SHA' # Usa Artifact Registry
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA' # <-- REPOSITORIO CORREGIDO
       - '--file=src/Dockerfile' 
       - '.'
     dir: 'frontend'
@@ -36,10 +36,10 @@ steps:
     id: 'Push Frontend'
     args:
       - 'push'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/frontend:$COMMIT_SHA' # Push a Artifact Registry
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA' # <-- REPOSITORIO CORREGIDO
 
   # ====================================================================
-  # 3. Desplegar el BACKEND en Cloud Run (MANTIENE URL EXPUESTA)
+  # 3. Desplegar el BACKEND en Cloud Run
   # ====================================================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy Backend'
@@ -49,14 +49,14 @@ steps:
       - 'deploy'
       - 'backend'
       - '--image'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/backend:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA' # <-- REPOSITORIO CORREGIDO
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'DATABASE_URL=${_DATABASE_URL}' # Usa tu variable de sustitución
+      - 'DATABASE_URL=${_DATABASE_URL}'
       
   # ====================================================================
   # 4. Desplegar el FRONTEND en Cloud Run
@@ -69,18 +69,18 @@ steps:
       - 'deploy'
       - 'frontend'
       - '--image'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/myflask-app/frontend:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA' # <-- REPOSITORIO CORREGIDO
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
 
-
+# ====================================================================
+# Variables de Sustitución (Mantiene tu URL)
+# ====================================================================
 substitutions:
-   
     _DATABASE_URL: 'postgresql://postgres.owmxsumofvrlnjbtrsir:fjIWOnVXmZOtjfpq@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
     
 options:
-  # CORRECCIÓN DE FALLO CRÍTICO DE LOGGING
   logging: CLOUD_LOGGING_ONLY

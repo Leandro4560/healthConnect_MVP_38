@@ -1,22 +1,102 @@
 steps:
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/backend', '.']
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/backend']
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
-    args:
-    - 'run'
-    - 'deploy'
-    - 'backend'
-    - '--image'
-    - 'gcr.io/$PROJECT_ID/backend'
-    - '--region'
-    - 'us-central1'
-    - '--platform'
-    - 'managed'
-    - '--allow-unauthenticated'
-    - '--set-env-vars'
-    - 'DATABASE_URL=${_DATABASE_URL}'
-images:
-  - 'gcr.io/$PROJECT_ID/backend'
+  # ----------------------------------------------------
+  # Paso 0 & 1: Construir y Empujar Imagen Docker del BACKEND (Python/FastAPI)
+  # ----------------------------------------------------
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Build Backend'
+  args:
+    [
+      'build',
+      '-t',
+      'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA',
+      '.',
+    ]
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Push Backend'
+  args:
+    [
+      'push',
+      'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA',
+    ]
+
+  # ----------------------------------------------------
+  # Paso 2 & 3: Instalar dependencias y Compilar el FRONTEND (Vite/React)
+  # ----------------------------------------------------
+- name: node:20
+  id: 'Install Frontend Dependencies'
+  entrypoint: npm
+  args: ['install']
+- name: node:20
+  id: 'Run Frontend Build'
+  entrypoint: npm
+  args: ['run', 'build']
+
+  # ----------------------------------------------------
+  # Paso 4 & 5: Construir y Empujar Imagen Docker del FRONTEND (Nginx)
+  # ----------------------------------------------------
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Build Frontend Image'
+  args:
+    [
+      'build',
+      '-t',
+      'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA',
+      '-f',
+      './Dockerfile.frontend',
+      '.',
+    ]
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'Push Frontend'
+  args:
+    [
+      'push',
+      'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA',
+    ]
+
+  # ----------------------------------------------------
+  # Paso 6: Desplegar el BACKEND en Cloud Run (¡Corrección del puerto!)
+  # ----------------------------------------------------
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: 'Deploy Backend'
+  args:
+    [
+      'gcloud',
+      'run',
+      'deploy',
+      'backend',
+      '--image',
+      'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA',
+      '--region',
+      'us-central1',
+      '--platform',
+      'managed',
+      '--allow-unauthenticated',
+      '--service-account',
+      '774803047672-compute@developer.gserviceaccount.com',
+      '--port', # **NUEVA LÍNEA**
+      '8000',   # **NUEVA LÍNEA**
+    ]
+
+  # ----------------------------------------------------
+  # Paso 7: Desplegar el FRONTEND en Cloud Run
+  # ----------------------------------------------------
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: 'Deploy Frontend'
+  args:
+    [
+      'gcloud',
+      'run',
+      'deploy',
+      'frontend',
+      '--image',
+      'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA',
+      '--region',
+      'us-central1',
+      '--platform',
+      'managed',
+      '--allow-unauthenticated',
+      '--service-account',
+      '774803047672-compute@developer.gserviceaccount.com',
+      '--port', # El frontend (Nginx) usa por defecto el puerto 80, puedes dejar el default o añadir 80.
+      '80',     # Nginx usa por defecto el puerto 80
+    ]

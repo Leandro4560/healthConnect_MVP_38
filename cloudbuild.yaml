@@ -8,7 +8,7 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA' # <-- Repositorio 'my-flask-repo'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA' # Repositorio corregido
       - '--file=Dockerfile'
       - '.'
     dir: 'backend'
@@ -17,29 +17,45 @@ steps:
     id: 'Push Backend'
     args:
       - 'push'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA' # <-- Repositorio 'my-flask-repo'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA'
 
   # ====================================================================
-  # 2. Construir y Subir la Imagen del FRONTEND
+  # 2. CONSTRUIR EL CÓDIGO FUENTE DEL FRONTEND (Crea la carpeta 'dist')
+  # Esto resuelve el error "COPY failed: file not found... stat dist: file does not exist"
+  # ====================================================================
+  - name: 'node:20' 
+    id: 'Install Frontend Dependencies'
+    entrypoint: 'npm'
+    args: ['install']
+    dir: 'frontend'
+
+  - name: 'node:20'
+    id: 'Run Frontend Build'
+    entrypoint: 'npm'
+    args: ['run', 'build'] 
+    dir: 'frontend'
+    
+  # ====================================================================
+  # 3. Construir y Subir la Imagen del FRONTEND (Ahora 'dist' ya existe)
   # ====================================================================
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'Build Frontend'
+    id: 'Build Frontend Image'
     args:
       - 'build'
       - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA' # <-- Repositorio 'my-flask-repo'
-      - '--file=Dockerfile'  # <-- Corregido para buscar en el directorio 'frontend'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA'
+      - '--file=Dockerfile'  # Ruta del Dockerfile en el contexto 'frontend'
       - '.'
-    dir: 'frontend' # <-- Directorio raíz del frontend
+    dir: 'frontend'
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push Frontend'
     args:
       - 'push'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA' # <-- Repositorio 'my-flask-repo'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA'
 
   # ====================================================================
-  # 3. Desplegar el BACKEND en Cloud Run
+  # 4. Desplegar el BACKEND en Cloud Run
   # ====================================================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy Backend'
@@ -49,7 +65,7 @@ steps:
       - 'deploy'
       - 'backend'
       - '--image'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA' # <-- Repositorio 'my-flask-repo'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/backend:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
       - '--platform'
@@ -59,7 +75,7 @@ steps:
       - 'DATABASE_URL=${_DATABASE_URL}'
 
   # ====================================================================
-  # 4. Desplegar el FRONTEND en Cloud Run
+  # 5. Desplegar el FRONTEND en Cloud Run
   # ====================================================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy Frontend'
@@ -69,7 +85,7 @@ steps:
       - 'deploy'
       - 'frontend'
       - '--image'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA' # <-- Repositorio 'my-flask-repo'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/my-flask-repo/frontend:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
       - '--platform'
@@ -77,11 +93,12 @@ steps:
       - '--allow-unauthenticated'
 
 # ====================================================================
-# Variables de Sustitución
+# Variables de Sustitución y Opciones
 # ====================================================================
 substitutions:
+    # Esta es la variable que pasará a tu servicio de backend.
     _DATABASE_URL: 'postgresql://postgres.owmxsumofvrlnjbtrsir:fjIWOnVXmZOtjfpq@aws-1-us-east-2.pooler.supabase.com:6543/postgres'
 
 options:
-  # Soluciona el error de permisos de Logs Writer
+  # Esto soluciona el error de permisos de Logs Writer
   logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,85 @@
+steps:
+  # ====================================================================
+  # 1. Construir y Subir la Imagen del BACKEND
+  # ====================================================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build Backend'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA'
+      - 'backend/scripts' # Directorio que contiene el Dockerfile
+    dir: '.'
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Backend'
+    args: ['push', 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA']
+    dir: '.'
+
+  # ====================================================================
+  # 2. Construir y Subir la Imagen del FRONTEND
+  # ====================================================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build Frontend'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA'
+      - 'frontend/src' # Directorio que contiene el Dockerfile
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Frontend'
+    args: ['push', 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA']
+    dir: '.'
+
+  # ====================================================================
+  # 3. Desplegar el BACKEND en Cloud Run (USANDO SECRET MANAGER)
+  # ====================================================================
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy Backend'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'backend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-secrets' # Usa el comando para inyectar secretos
+      - 'DATABASE_URL=[SECRET_NAME]:latest' # Reemplaza [SECRET_NAME] con el nombre que le diste a tu secreto (ej: 'backend-database-url')
+    # Declara la variable de entorno que será poblada por el secreto.
+    # El valor REAL nunca se expone en los logs de Cloud Build.
+    secretEnv: ['DATABASE_URL'] 
+
+  # ====================================================================
+  # 4. Desplegar el FRONTEND en Cloud Run
+  # ====================================================================
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy Frontend'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'frontend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
+# ====================================================================
+# Imágenes a guardar en Container Registry/Artifact Registry
+# ====================================================================
+images:
+  - 'gcr.io/$PROJECT_ID/backend:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/frontend:$COMMIT_SHA'
+
+# La sección 'substitutions' ya no es necesaria, pero la dejamos para referencia.
+# Si solo usas variables predefinidas como $PROJECT_ID y $COMMIT_SHA, no necesitas esta sección.

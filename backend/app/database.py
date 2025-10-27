@@ -14,11 +14,23 @@ logger = logging.getLogger(__name__)
 # Configuración de SSL para conexiones seguras (requerido por Supabase)
 connect_args = {"connect_timeout": 30}  # Timeout más largo para debug
 
-# Detectar tanto postgres:// como postgresql://
+# Asegurarnos que tenemos una URL válida
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL no está configurada")
+
 if DATABASE_URL.startswith(("postgres://", "postgresql://")):
     parsed_url = urllib.parse.urlparse(DATABASE_URL)
     
-    # Solo log del host al que nos vamos a conectar
+    # Asegurarnos que la URL tiene todos los componentes necesarios
+    if not parsed_url.hostname:
+        raise ValueError("DATABASE_URL no tiene un hostname válido")
+    
+    # Siempre usar SSL para conexiones a Supabase
+    connect_args.update({
+        "sslmode": "require",
+        "connect_timeout": 30
+    })
+    
     logger.info(f"Attempting connection to: {parsed_url.hostname}:{parsed_url.port or 5432}")
     
     logger.info(f"Connecting to host: {parsed_url.hostname}, port: {parsed_url.port}")

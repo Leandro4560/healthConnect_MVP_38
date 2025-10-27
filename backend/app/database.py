@@ -40,35 +40,13 @@ if DATABASE_URL.startswith(("postgres://", "postgresql://")):
     
     logger.info(f"Using local proxy connection: {parsed_url.hostname}:{parsed_url.port}")
     
-    # Configuración de conexión
+    # Configuración de conexión con todas las opciones necesarias
     connect_args = {
         "connect_timeout": 30,
-        "application_name": "healthconnect_backend"
-    }
-
-    # Intentar cada configuración
-    connection_success = False
-    for url, args in configs:
-        logger.info(f"Attempting connection to: {urllib.parse.urlparse(url).hostname}:{urllib.parse.urlparse(url).port or 5432}")
-        success, final_url = try_connection(url, args)
-        if success:
-            logger.info("Connection successful!")
-            DATABASE_URL = str(final_url)
-            connect_args = args
-            connection_success = True
-            break
-
-    if not connection_success:
-        raise ValueError("No se pudo establecer conexión con ninguna configuración")
-    
-    logger.info(f"Connecting to host: {parsed_url.hostname}, port: {parsed_url.port}")
-    
-    # Configuración SSL y timeout para todas las conexiones Postgres
-    connect_args.update({
-        "sslmode": "require",
         "application_name": "healthconnect_backend",
+        "sslmode": "require",
         "options": "-c statement_timeout=30000"  # 30 segundos timeout para queries
-    })
+    }
 
 try:
     logger.info("Initializing database connection...")

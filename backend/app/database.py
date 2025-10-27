@@ -18,16 +18,8 @@ connect_args = {"connect_timeout": 30}  # Timeout más largo para debug
 if DATABASE_URL.startswith(("postgres://", "postgresql://")):
     parsed_url = urllib.parse.urlparse(DATABASE_URL)
     
-    # Convertir URL de pooler a conexión directa si es necesario
-    if "pooler.supabase.com" in parsed_url.hostname:
-        # Modificar el hostname para usar conexión directa
-        direct_host = parsed_url.hostname.replace("pooler.", "db.")
-        # Construir nueva URL con puerto 5432 en lugar de 6543
-        url_parts = list(parsed_url)
-        url_parts[1] = f"{direct_host}:5432"  # netloc = hostname:port
-        DATABASE_URL = urllib.parse.urlunparse(url_parts)
-        parsed_url = urllib.parse.urlparse(DATABASE_URL)
-        logger.info(f"Converted pooler URL to direct connection: {parsed_url.hostname}:5432")
+    # Solo log del host al que nos vamos a conectar
+    logger.info(f"Attempting connection to: {parsed_url.hostname}:{parsed_url.port or 5432}")
     
     logger.info(f"Connecting to host: {parsed_url.hostname}, port: {parsed_url.port}")
     

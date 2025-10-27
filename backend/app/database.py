@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine
+import sqlalchemy
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 import logging
@@ -18,20 +19,64 @@ connect_args = {"connect_timeout": 30}  # Timeout más largo para debug
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL no está configurada")
 
+def try_connection(url, args):
+    """Intenta establecer una conexión con los parámetros dados"""
+    try:
+        test_engine = create_engine(url, connect_args=args, poolclass=sqlalchemy.pool.NullPool)
+        with test_engine.connect() as conn:
+            conn.execute(sqlalchemy.text("SELECT 1"))
+            return True, test_engine.url
+    except Exception as e:
+        logger.warning(f"Connection attempt failed: {str(e)}")
+        return False, None
+
 if DATABASE_URL.startswith(("postgres://", "postgresql://")):
     parsed_url = urllib.parse.urlparse(DATABASE_URL)
     
-    # Asegurarnos que la URL tiene todos los componentes necesarios
-    if not parsed_url.hostname:
-        raise ValueError("DATABASE_URL no tiene un hostname válido")
-    
-    # Siempre usar SSL para conexiones a Supabase
-    connect_args.update({
+    # Configuración base
+    base_args = {
         "sslmode": "require",
-        "connect_timeout": 30
-    })
+        "connect_timeout": 30,
+        "application_name": "healthconnect_backend"
+    }
+
+    # Lista de configuraciones a intentar
+    configs = []
     
-    logger.info(f"Attempting connection to: {parsed_url.hostname}:{parsed_url.port or 5432}")
+    if "pooler.supabase.com" in parsed_url.hostname:
+        # 1. Intento: URL original con puerto 6543 (pooler)
+        configs.append((DATABASE_URL, base_args.copy()))
+        
+        # 2. Intento: Convertir a conexión directa
+        direct_host = parsed_url.hostname.replace("pooler.", "db.")
+        url_parts = list(parsed_url)
+        url_parts[1] = f"{direct_host}:5432"
+        direct_url = urllib.parse.urlunparse(url_parts)
+        configs.append((direct_url, base_args.copy()))
+        
+        # 3. Intento: Usar puerto 5432 con host original
+        url_parts = list(parsed_url)
+        url_parts[1] = f"{parsed_url.hostname}:5432"
+        alt_url = urllib.parse.urlunparse(url_parts)
+        configs.append((alt_url, base_args.copy()))
+    else:
+        # Si no es pooler, usar la URL tal cual
+        configs.append((DATABASE_URL, base_args))
+
+    # Intentar cada configuración
+    connection_success = False
+    for url, args in configs:
+        logger.info(f"Attempting connection to: {urllib.parse.urlparse(url).hostname}:{urllib.parse.urlparse(url).port or 5432}")
+        success, final_url = try_connection(url, args)
+        if success:
+            logger.info("Connection successful!")
+            DATABASE_URL = str(final_url)
+            connect_args = args
+            connection_success = True
+            break
+
+    if not connection_success:
+        raise ValueError("No se pudo establecer conexión con ninguna configuración")
     
     logger.info(f"Connecting to host: {parsed_url.hostname}, port: {parsed_url.port}")
     

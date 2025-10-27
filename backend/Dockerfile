@@ -1,6 +1,9 @@
 # 1. IMAGEN BASE: Usa Python 3.11 en su versión slim (más ligera)
 FROM python:3.11-slim
 
+# Instalar socat para proxy TCP
+RUN apt-get update && apt-get install -y socat && rm -rf /var/lib/apt/lists/*
+
 # 2. WORKDIR: Establece /app como el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
@@ -15,4 +18,7 @@ COPY . /app
 # 5. COMANDO DE INICIO (CMD): Ejecuta Uvicorn.
 #    Usa la variable de entorno $PORT (inyectada por Render) y un valor por defecto (8000).
 #    Asegúrate de que 'app.main:app' sea la ruta correcta a tu objeto FastAPI.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Script de inicio que configura el proxy y luego inicia la aplicación
+COPY start.sh /app/
+RUN chmod +x /app/start.sh
+CMD ["/app/start.sh"]

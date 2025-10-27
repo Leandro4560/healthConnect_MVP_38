@@ -19,49 +19,32 @@ connect_args = {"connect_timeout": 30}  # Timeout más largo para debug
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL no está configurada")
 
-def try_connection(url, args):
-    """Intenta establecer una conexión con los parámetros dados"""
-    try:
-        test_engine = create_engine(url, connect_args=args, poolclass=sqlalchemy.pool.NullPool)
-        with test_engine.connect() as conn:
-            conn.execute(sqlalchemy.text("SELECT 1"))
-            return True, test_engine.url
-    except Exception as e:
-        logger.warning(f"Connection attempt failed: {str(e)}")
-        return False, None
+def modify_url_for_local_proxy(url):
+    """Modifica la URL para usar el proxy local"""
+    parsed = urllib.parse.urlparse(url)
+    # Mantener las mismas credenciales y base de datos, pero usar localhost
+    new_netloc = f"{parsed.username}:{parsed.password}@localhost:{parsed.port}"
+    return urllib.parse.urlunparse((
+        parsed.scheme,
+        new_netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment
+    ))
 
 if DATABASE_URL.startswith(("postgres://", "postgresql://")):
+    # Modificar la URL para usar el proxy local
+    DATABASE_URL = modify_url_for_local_proxy(DATABASE_URL)
     parsed_url = urllib.parse.urlparse(DATABASE_URL)
     
-    # Configuración base
-    base_args = {
-        "sslmode": "require",
+    logger.info(f"Using local proxy connection: {parsed_url.hostname}:{parsed_url.port}")
+    
+    # Configuración de conexión
+    connect_args = {
         "connect_timeout": 30,
         "application_name": "healthconnect_backend"
     }
-
-    # Lista de configuraciones a intentar
-    configs = []
-    
-    if "pooler.supabase.com" in parsed_url.hostname:
-        # 1. Intento: URL original con puerto 6543 (pooler)
-        configs.append((DATABASE_URL, base_args.copy()))
-        
-        # 2. Intento: Convertir a conexión directa
-        direct_host = parsed_url.hostname.replace("pooler.", "db.")
-        url_parts = list(parsed_url)
-        url_parts[1] = f"{direct_host}:5432"
-        direct_url = urllib.parse.urlunparse(url_parts)
-        configs.append((direct_url, base_args.copy()))
-        
-        # 3. Intento: Usar puerto 5432 con host original
-        url_parts = list(parsed_url)
-        url_parts[1] = f"{parsed_url.hostname}:5432"
-        alt_url = urllib.parse.urlunparse(url_parts)
-        configs.append((alt_url, base_args.copy()))
-    else:
-        # Si no es pooler, usar la URL tal cual
-        configs.append((DATABASE_URL, base_args))
 
     # Intentar cada configuración
     connection_success = False

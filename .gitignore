@@ -47,3 +47,4 @@ client_secrets.json
 
 # Logs
 *.log
+backend/dev.db 

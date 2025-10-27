@@ -3,11 +3,10 @@ from contextlib import asynccontextmanager
 import logging
 
 from app.database import engine
-from app.models.base import Base  # Base definido en app/models/base.py
+from app.models.base import Base
 from app.core.config import settings
 import os
 
-# Importa routers (ajusta rutas si es necesario)
 from app.routes import ruta, citas
 
 logging.basicConfig(level=logging.INFO)

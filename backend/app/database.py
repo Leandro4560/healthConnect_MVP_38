@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 import logging
 import urllib.parse
+import time
 
 DATABASE_URL = settings.DATABASE_URL
 
@@ -48,25 +49,36 @@ if DATABASE_URL.startswith(("postgres://", "postgresql://")):
         "options": "-c statement_timeout=30000"  # 30 segundos timeout para queries
     }
 
-try:
-    logger.info("Initializing database connection...")
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        future=True,
-        connect_args=connect_args,
-        pool_size=5,               # Limitar conexiones concurrentes
-        max_overflow=10,           # Máximo de conexiones extra
-        pool_timeout=30,           # Timeout para obtener conexión del pool
-        pool_recycle=1800,        # Reciclar conexiones cada 30 min
-    )
-    # Probar conexión inmediatamente
-    with engine.connect() as conn:
-        conn.execute("SELECT 1")
+logger.info("Initializing database engine (no blocking connect)...")
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    future=True,
+    connect_args=connect_args,
+    pool_size=5,               # Limitar conexiones concurrentes
+    max_overflow=10,           # Máximo de conexiones extra
+    pool_timeout=30,           # Timeout para obtener conexión del pool
+    pool_recycle=1800,        # Reciclar conexiones cada 30 min
+)
+
+# Intentar una conexión de comprobación con reintentos para dar tiempo al proxy
+max_attempts = 6
+for attempt in range(1, max_attempts + 1):
+    try:
+        logger.info(f"Database connection test attempt {attempt}/{max_attempts}...")
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
         logger.info("Database connection test successful")
-except Exception as e:
-    logger.error(f"Database connection error: {str(e)}")
-    raise
+        break
+    except Exception as e:
+        logger.warning(f"Database connection attempt {attempt} failed: {e}")
+        if attempt == max_attempts:
+            logger.error("All database connection attempts failed, raising error")
+            raise
+        # esperar exponencialmente (2, 4, 8...) para darle tiempo al proxy
+        sleep_seconds = 2 ** attempt
+        logger.info(f"Waiting {sleep_seconds}s before next attempt...")
+        time.sleep(sleep_seconds)
 
 SessionLocal = sessionmaker(
     autocommit=False,

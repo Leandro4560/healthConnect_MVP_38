@@ -12,3 +12,4 @@ google-auth-httplib2
 httpx
 pytz
 supabase
+python-multipart

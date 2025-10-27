@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Crear tablas si no existen (solo en dev; en producción usa Alembic)
 #Base.metadata.create_all(bind=engine)
-#logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
+logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
 try:
     logger.info(f"DATABASE_URL used: {settings.DATABASE_URL}")
     # Si es sqlite con ruta relativa, mostramos la ruta absoluta para aclarar

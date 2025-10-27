@@ -13,8 +13,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Crear tablas si no existen (solo en dev; en producción usa Alembic)
-Base.metadata.create_all(bind=engine)
-logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
+#Base.metadata.create_all(bind=engine)
+#logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

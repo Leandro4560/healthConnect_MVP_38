@@ -18,6 +18,6 @@ COPY . /app
 #    Usa la variable de entorno $PORT (inyectada por Render) y un valor por defecto (8000).
 #    Asegúrate de que 'app.main:app' sea la ruta correcta a tu objeto FastAPI.
 # Script de inicio que configura el proxy y luego inicia la aplicación
-COPY start.sh /app/
+COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 CMD ["/app/start.sh"]

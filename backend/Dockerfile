@@ -1,10 +1,9 @@
 # 1. IMAGEN BASE: Usa Python 3.11 en su versión slim (más ligera)
 FROM python:3.11-slim
 
-# Instalar socat para proxy TCP
-RUN apt-get update && apt-get install -y socat && rm -rf /var/lib/apt/lists/*
+# No instalar socat (no lo usamos)
+# RUN apt-get update && apt-get install -y socat && rm -rf /var/lib/apt/lists/*
 
-# 2. WORKDIR: Establece /app como el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
 # 3. DEPENDENCIAS: Copia el archivo requirements.txt e instala las dependencias.

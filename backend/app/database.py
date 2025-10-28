@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = settings.DATABASE_URL
 
-# Asegurar sslmode para conexiones a Supabase/Postgres si no está presente en la URL
+# Añadir sslmode=require para conexiones a Supabase/Postgres si no está en la URL
 connect_args = {}
 if DATABASE_URL and DATABASE_URL.startswith(("postgres://", "postgresql://")):
     if "sslmode" not in DATABASE_URL:
@@ -17,16 +17,16 @@ if DATABASE_URL and DATABASE_URL.startswith(("postgres://", "postgresql://")):
         logger.info("Añadiendo connect_args={'sslmode':'require'} para la conexión PostgreSQL.")
 
 engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
+    DATABASE_URL, 
+    pool_pre_ping=True, 
     future=True,
     connect_args=connect_args
 )
 
 SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine,
+    autocommit=False, 
+    autoflush=False, 
+    bind=engine, 
     future=True
 )
 

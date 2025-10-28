@@ -31,7 +31,6 @@ ENGINE_KWARGS = {
 # Ajustes por driver
 if DATABASE_URL.startswith("sqlite"):
     CONNECT_ARGS = {"check_same_thread": False}
-    # para sqlite no aplican pool_size/max_overflow en general
     ENGINE_CREATION_KWARGS = {}
 else:
     CONNECT_ARGS = {"sslmode": os.environ.get("DB_SSLMODE", "require")}

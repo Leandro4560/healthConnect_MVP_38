@@ -1,59 +1,40 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from app.config import settings
-import time
-import logging
 import os
+import time
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import OperationalError
 
-logger = logging.getLogger(__name__)
-
-DATABASE_URL = settings.DATABASE_URL or os.environ.get("DATABASE_URL")
-
-# Ajustes de pool recomendados para entornos con límites (Render / free tier)
+DATABASE_URL = os.environ.get("DATABASE_URL")
 ENGINE_KWARGS = {
-    "pool_size": 5,
-    "max_overflow": 2,
-    "pool_timeout": 30,
-    "pool_recycle": 1800,
-    "pool_pre_ping": True,
-    "future": True,
+    "pool_size": int(os.environ.get("DB_POOL_SIZE", "5")),
+    "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "2")),
+    "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT", "30")),
+    "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE", "1800")),
 }
 
-# Forzar sslmode=require si no está en la URL (Supabase lo requiere en muchos casos)
-connect_args = {}
-if DATABASE_URL and ("postgres://" in DATABASE_URL or "postgresql://" in DATABASE_URL):
-    if "sslmode" not in DATABASE_URL:
-        connect_args = {"sslmode": "require"}
-        logger.info("Añadiendo connect_args={'sslmode':'require'} para la conexión PostgreSQL.")
-
-def create_engine_with_retry(url, retries=4, backoff=1.0):
+def create_engine_with_retry(url: str, retries: int = 4, backoff: float = 1.0):
     last_exc = None
-    for attempt in range(1, retries + 1):
+    for attempt in range(retries):
         try:
-            engine = create_engine(url, connect_args=connect_args, **ENGINE_KWARGS)
-            # probar conexión rápida
+            engine = create_engine(url, **ENGINE_KWARGS)
             with engine.connect() as conn:
-                pass
-            logger.info("Engine creado y test de conexión OK.")
+                conn.execute("SELECT 1")
             return engine
-        except Exception as e:
+        except OperationalError as e:
             last_exc = e
-            logger.warning("Database connection test attempt %d/%d failed: %s", attempt, retries, e)
-            time.sleep(backoff * (2 ** (attempt - 1)))
-    # si fallan los retries, devolver engine (creado sin test) para que la app no caiga al arranque
-    try:
-        engine = create_engine(url, connect_args=connect_args, **ENGINE_KWARGS)
-        logger.warning("No se pudo verificar la conexión en el startup, se devuelve engine y la app continuará; conexiones posteriores intentarán conectarse.")
-        return engine
-    except Exception as e:
-        logger.error("No se pudo crear engine: %s", e)
-        raise last_exc
+            wait = backoff * (2 ** attempt)
+            print(f"Database connection test attempt {attempt+1}/{retries} failed: {e}")
+            time.sleep(wait)
 
-# Crear engine (no bloquear el arranque indefinidamente)
-engine = create_engine_with_retry(DATABASE_URL, retries=4, backoff=1.0)
+    if last_exc:
+        print("No se pudo verificar la conexión en el startup, se devuelve engine y la app continuará; conexiones posteriores intentarán conectarse.")
+    return create_engine(url, **ENGINE_KWARGS)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL no definida. Configura la variable en Render con la URL del pooler.")
+
+engine = create_engine_with_retry(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():

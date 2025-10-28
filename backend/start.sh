@@ -46,5 +46,16 @@ socat TCP4-LISTEN:6543,fork TCP4:$DB_HOST:$DB_PORT &
 # Esperar un momento para que socat se inicie
 sleep 2
 
+# ===== Reescribir DATABASE_URL para usar el proxy local (localhost:6543) =====
+if [ -n "$DATABASE_URL" ]; then
+  # Solo tocar si es una URL postgres y no apunta ya a localhost
+  if echo "$DATABASE_URL" | grep -Eqi '^postgres(ql)?://' && ! echo "$DATABASE_URL" | grep -Eqi '@(localhost|127\\.0\\.0\\.1)'; then
+    PROXIED_DB_URL=$(echo "$DATABASE_URL" | sed -E 's#(@)[^/]+/#\1localhost:6543/#')
+    export DATABASE_URL="$PROXIED_DB_URL"
+    echo "Using proxied DATABASE_URL: ${DATABASE_URL}"
+  fi
+fi
+# ==========================================================================
+
 # Iniciar la aplicación
 exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

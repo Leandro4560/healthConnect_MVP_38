@@ -20,6 +20,11 @@ export const api = axios.create({
 
 export async function apiFetch(path, options = {}) {
   const url = joinPath(path);
+  // Debug: si API_URL apunta al mismo origen y window.__API_ROOT__ está vacío,
+  // informamos en consola para facilitar debugging de despliegues en Render.
+  if ((window && window.__API_ROOT__ === "") || (!API_ROOT && window && !window.__API_ROOT__)) {
+    console.warn("[api] WARNING: BACKEND_URL no configurado. Las peticiones se harán al mismo origen (esto suele producir 404 en despliegues). Configura BACKEND_URL en el servicio frontend.");
+  }
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   const resp = await fetch(url, { ...options, headers });
   if (!resp.ok) {

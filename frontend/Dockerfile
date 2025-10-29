@@ -17,6 +17,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # copia entrypoint que genera env.js con la URL del backend
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
+# instalar envsubst (gettext) para renderizar plantillas de nginx en tiempo de arranque
+RUN apk add --no-cache gettext
+# copia la plantilla nginx
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 EXPOSE 80
 # Start script will generate /usr/share/nginx/html/env.js using BACKEND_URL env var
 ENTRYPOINT ["/docker-entrypoint.sh"]

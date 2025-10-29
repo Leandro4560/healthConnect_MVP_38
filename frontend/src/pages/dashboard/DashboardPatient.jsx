@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { userAuth } from "../../context/Authcontext";
-import { API_URL, api } from "../../lib/api";
+import { API_URL, apiFetch } from "../../lib/api";
 
 const DashboardPatient = () => {
   const { user } = userAuth();
@@ -13,8 +13,7 @@ const DashboardPatient = () => {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    api
-      .get("/appointments/patient", { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch("/appointments/patient", { method: "GET", headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setAppointments(res.data || []))
       .catch((e) => setError(e.response?.data?.detail || e.message || "Error"))
       .finally(() => setLoading(false));
@@ -71,11 +70,11 @@ const AppointmentForm = ({ token, onCreated }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.post(
-        "/appointments/",
-        { doctor_id: Number(doctorId), start_time: startTime, end_time: endTime, is_virtual: Boolean(isVirtual), description },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await apiFetch("/appointments/", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ doctor_id: Number(doctorId), start_time: startTime, end_time: endTime, is_virtual: Boolean(isVirtual), description }),
+      });
       const data = res.data;
       onCreated && onCreated(data);
       setDoctorId(1);

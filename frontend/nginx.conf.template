@@ -6,11 +6,16 @@ server {
 
   # Proxy API requests to backend (BACKEND_URL must include scheme and host, e.g. https://api.example.com)
   location /api/ {
-    # proxy_pass must end with a slash to preserve the path after /api/
+    # proxy_pass must include scheme+host. We enable SNI so TLS to upstream works
+    # Use $proxy_host as Host header and for proxy_ssl_name so certificate SNI matches.
     proxy_pass ${BACKEND_URL};
+    proxy_set_header Host $proxy_host;
+    proxy_ssl_server_name on;
+    proxy_ssl_name $proxy_host;
+    # Use system trusted CAs (alpine ca-certificates package must be installed in the image)
+    proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
-    proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;

@@ -19,6 +19,8 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 # instalar envsubst (gettext) para renderizar plantillas de nginx en tiempo de arranque
 RUN apk add --no-cache gettext
+# Install system CAs so nginx can verify HTTPS upstream certificates
+RUN apk add --no-cache ca-certificates
 # copia la plantilla nginx
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 EXPOSE 80

@@ -13,9 +13,9 @@ const DashboardPatient = () => {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    apiFetch("/appointments/patient", { method: "GET", headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setAppointments(res.data || []))
-      .catch((e) => setError(e.response?.data?.detail || e.message || "Error"))
+    apiFetch("appointments/patient", { method: "GET", headers: { Authorization: `Bearer ${token}` } })
+      .then((data) => setAppointments(data || []))
+      .catch((e) => setError(e.response?.detail || e.message || "Error"))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -67,25 +67,22 @@ const AppointmentForm = ({ token, onCreated }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
     try {
-      const res = await apiFetch("/appointments/", {
+      const payload = {
+        doctor_id: Number(doctorId),
+        start_time: startTime,
+        end_time: endTime,
+        is_virtual: Boolean(isVirtual),
+        description,
+      };
+      const created = await apiFetch("appointments/", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ doctor_id: Number(doctorId), start_time: startTime, end_time: endTime, is_virtual: Boolean(isVirtual), description }),
+        body: JSON.stringify(payload),
       });
-      const data = res.data;
-      onCreated && onCreated(data);
-      setDoctorId(1);
-      setStartTime("");
-      setEndTime("");
-      setDescription("");
-      setIsVirtual(true);
-    } catch (e) {
-      setError(e.message || "Error");
-    } finally {
-      setLoading(false);
+      onCreated(created);
+    } catch (err) {
+      console.error("error creating appointment", err);
     }
   };
 

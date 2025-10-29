@@ -1,6 +1,8 @@
 import axios from "axios";
 
-export const API_URL = (import.meta.env.VITE_API_URL || `${window.location.origin}`).replace(/\/$/, '') + "/api/v1";
+export const API_ROOT = (import.meta.env.VITE_API_URL || "").replace(/\/$/, '') || window.__API_ROOT__ || "";
+
+export const API_URL = (API_ROOT ? API_ROOT.replace(/\/$/, '') : window.location.origin.replace(/\/$/, '')) + "/api/v1";
 
 function joinPath(path) {
   return API_URL.replace(/\/+$/,"") + "/" + path.replace(/^\/+/,"");

@@ -43,9 +43,18 @@ app = FastAPI(title="No Country - API de Gestion Medica", version="1.0.0", lifes
 from starlette.middleware.cors import CORSMiddleware
 
 # ** CORRECCIÓN DE CORS: Definir explícitamente el origen del Frontend **
-_frontend = os.environ.get("FRONTEND_ORIGINS", "https://healthconnect-mvp-38-1.onrender.com")
+# Si no se especifica FRONTEND_ORIGINS en el entorno, por compatibilidad
+# asumimos allow_all (esto evita 404/CORS cuando no se configuró aún en Render).
+_frontend = os.environ.get("FRONTEND_ORIGINS")
 allow_all = os.environ.get("ALLOW_ALL_CORS","0")=="1"
-origins = ["*"] if allow_all else [o.strip() for o in _frontend.split(",")]
+if allow_all:
+    origins = ["*"]
+else:
+    if _frontend and _frontend.strip():
+        origins = [o.strip() for o in _frontend.split(",")]
+    else:
+        # Por defecto permitir todos los orígenes si no hay configuración explícita
+        origins = ["*"]
 
 app.add_middleware(
   CORSMiddleware,

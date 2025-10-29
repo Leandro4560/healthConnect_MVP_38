@@ -73,24 +73,39 @@ def _create_model_tables(engine):
     try:
         models_pkg = importlib.import_module("app.models")
     except Exception:
-        # No hay paquete app.models
         return
 
-    for finder, modname, ispkg in pkgutil.iter_modules(models_pkg.__path__):
+    # Importar primero el modelo user para asegurar que la tabla 'users' exista antes
+    try:
+        importlib.import_module("app.models.user")
+    except Exception:
+        pass
+
+    # Importar todos los módulos de app.models (determinista)
+    module_names = [m[1] for m in pkgutil.iter_modules(models_pkg.__path__)]
+    for modname in module_names:
         full_name = f"app.models.{modname}"
         try:
-            mod = importlib.import_module(full_name)
+            importlib.import_module(full_name)
         except Exception as e:
             print(f"Warning: no se pudo importar {full_name}: {e}")
-            continue
 
+    # Recolectar MetaData únicos de todas las tablas y crear todas las tablas por metadata
+    metas = set()
+    for modname in module_names:
+        try:
+            mod = importlib.import_module(f"app.models.{modname}")
+        except Exception:
+            continue
         for obj in vars(mod).values():
-            # mapped class tendrá __table__
             if hasattr(obj, "__table__"):
-                try:
-                    obj.__table__.metadata.create_all(engine)
-                except Exception as e:
-                    print(f"Warning: crear tabla para {getattr(obj, '__name__', str(obj))} falló: {e}")
+                metas.add(obj.__table__.metadata)
+
+    for meta in metas:
+        try:
+            meta.create_all(engine)
+        except Exception as e:
+            print(f"Warning: crear tablas para metadata falló: {e}")
 
 # Intentar crear tablas tanto en la metadata local como en las de los modelos importados
 try:

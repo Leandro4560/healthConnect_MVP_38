@@ -50,6 +50,7 @@ app.add_middleware(
   allow_headers=["*"],
 )
 
+# Incluir routers con los prefijos que espera el frontend
 app.include_router(ruta.router, prefix="/api/v1/auth", tags=["Autenticación"])
 app.include_router(citas.router, prefix="/api/v1/appointments", tags=["Citas"])
 

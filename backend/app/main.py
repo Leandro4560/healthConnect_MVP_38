@@ -6,6 +6,7 @@ from app.database import engine
 from app.models.base import Base
 from app.core.config import settings
 import os
+from fastapi.middleware.cors import CORSMiddleware
 
 # Importa routers (ajusta rutas si es necesario)
 from app.routes import ruta, citas
@@ -34,29 +35,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="No Country - API de Gestion Medica", version="1.0.0", lifespan=lifespan)
 
-# CORS y routers (mantén lo que ya tenías)
-from starlette.middleware.cors import CORSMiddleware
-
-# ** CORRECCIÓN DE CORS: Definir explícitamente el origen del Frontend **
-origins = [
-    # 1. Tu URL de Frontend en Render (¡Obligatorio!)
-    "https://healthconnect-mvp-38-1.onrender.com", 
-    # 2. Tu URL del Backend (para acceso directo)
-    "https://healthconnect-mvp-38.onrender.com", 
-    # 3. URLs locales de desarrollo (opcional pero útil)
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:8000",
-    # 4. Mantener comodín para pruebas sin credenciales, pero se ignorará si allow_credentials=True
-    "*", 
-]
+# CORS: para debugging puedes usar ALLOW_ALL_CORS=1 en Render, en producción especifica FRONTEND_ORIGINS
+_frontend_origins = os.environ.get("FRONTEND_ORIGINS", "https://healthconnect-mvp-38-1.onrender.com")
+allow_all = os.environ.get("ALLOW_ALL_CORS", "0") == "1"
+origins = ["*"] if allow_all else [o.strip() for o in _frontend_origins.split(",") if o.strip()]
 
 app.add_middleware(
-    CORSMiddleware, 
-    allow_origins=origins, 
-    allow_credentials=True, 
-    allow_methods=["*"], 
-    allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(ruta.router, prefix="/api/v1/auth", tags=["Autenticación"])

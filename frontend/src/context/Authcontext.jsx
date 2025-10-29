@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext();
 
-const API_URL = import.meta.env.VITE_APP_API_URL || "http://localhost:8000/api/v1";
+import { API_URL, api } from "../lib/api";
+// usa `api` o `API_URL` según necesites
 
 export const AuthContextProvider = ({ children }) => {
   const navigate = useNavigate();

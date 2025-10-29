@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { userAuth } from "../../context/Authcontext";
-
-const API_URL = import.meta.env.VITE_APP_API_URL || "http://localhost:8000/api/v1";
+import { API_URL, api } from "../../lib/api";
 
 const DashboardDoctor = () => {
   const { user } = userAuth();

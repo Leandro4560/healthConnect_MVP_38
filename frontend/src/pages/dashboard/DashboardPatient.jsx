@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { userAuth } from "../../context/Authcontext";
-
-const API_URL = import.meta.env.VITE_APP_API_URL || "http://localhost:8000/api/v1";
+import { API_URL, api } from "../../lib/api";
 
 const DashboardPatient = () => {
   const { user } = userAuth();
@@ -14,12 +13,10 @@ const DashboardPatient = () => {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    fetch(`${API_URL}/appointments/patient`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => setAppointments(data || []))
-      .catch((e) => setError(e.message || "Error"))
+    api
+      .get("/appointments/patient", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setAppointments(res.data || []))
+      .catch((e) => setError(e.response?.data?.detail || e.message || "Error"))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -61,7 +58,6 @@ const DashboardPatient = () => {
 };
 
 const AppointmentForm = ({ token, onCreated }) => {
-  const API_URL = import.meta.env.VITE_APP_API_URL || "http://localhost:8000/api/v1";
   const [doctorId, setDoctorId] = useState(1);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -75,16 +71,12 @@ const AppointmentForm = ({ token, onCreated }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/appointments/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ doctor_id: Number(doctorId), start_time: startTime, end_time: endTime, is_virtual: Boolean(isVirtual), description }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Error creando cita");
-      }
-      const data = await res.json();
+      const res = await api.post(
+        "/appointments/",
+        { doctor_id: Number(doctorId), start_time: startTime, end_time: endTime, is_virtual: Boolean(isVirtual), description },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = res.data;
       onCreated && onCreated(data);
       setDoctorId(1);
       setStartTime("");

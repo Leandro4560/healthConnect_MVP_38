@@ -1,5 +1,7 @@
 import os
 import time
+import pkgutil
+import importlib
 from typing import Generator
 
 from sqlalchemy import create_engine, text
@@ -10,7 +12,6 @@ from sqlalchemy.exc import OperationalError
 DB_PROVIDER = os.environ.get("DB_PROVIDER", "").lower()
 FORCE_LOCAL = os.environ.get("FORCE_LOCAL_SQLITE", "").lower() in ("1", "true", "yes")
 
-# Si se fuerza local o se indica DB_PROVIDER sqlite => usar SQLite aun si DATABASE_URL existe
 ENV_DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 USE_SQLITE = FORCE_LOCAL or DB_PROVIDER == "sqlite" or (not ENV_DATABASE_URL)
 
@@ -26,7 +27,7 @@ else:
 # Ajustes por driver
 if IS_SQLITE:
     CONNECT_ARGS = {"check_same_thread": False}
-    ENGINE_CREATION_KWARGS = {}  # evitar pool sizing para sqlite file
+    ENGINE_CREATION_KWARGS = {}
 else:
     CONNECT_ARGS = {"sslmode": os.environ.get("DB_SSLMODE", "require")}
     ENGINE_CREATION_KWARGS = {
@@ -66,18 +67,43 @@ engine = create_engine_with_retry(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Intentar crear tablas de los modelos (si los modelos están presentes)
-try:
-    # Importar modelos para registrar metadata si existen
+# Intentar crear tablas: importar app.models y crear las tablas para
+# cada clase mapeada (esto cubre casos donde los modelos usan otra Base/MetaData).
+def _create_model_tables(engine):
     try:
-        # Ajusta el import según la estructura del proyecto
-        from app import models as _models  # noqa: F401
+        models_pkg = importlib.import_module("app.models")
     except Exception:
-        pass
+        # No hay paquete app.models
+        return
 
+    for finder, modname, ispkg in pkgutil.iter_modules(models_pkg.__path__):
+        full_name = f"app.models.{modname}"
+        try:
+            mod = importlib.import_module(full_name)
+        except Exception as e:
+            print(f"Warning: no se pudo importar {full_name}: {e}")
+            continue
+
+        for obj in vars(mod).values():
+            # mapped class tendrá __table__
+            if hasattr(obj, "__table__"):
+                try:
+                    obj.__table__.metadata.create_all(engine)
+                except Exception as e:
+                    print(f"Warning: crear tabla para {getattr(obj, '__name__', str(obj))} falló: {e}")
+
+# Intentar crear tablas tanto en la metadata local como en las de los modelos importados
+try:
+    # importar modelos (si existen) y crear sus tablas
+    _create_model_tables(engine)
+
+    # crear tablas registradas en Base de este módulo (si hubiera)
     Base.metadata.create_all(engine)
+
     print("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
     print(f"DATABASE_URL used: {DATABASE_URL}")
+    if IS_SQLITE:
+        print(f"Resolved SQLite file path: {DATABASE_URL.replace('sqlite://', '')}")
 except Exception as e:
     print("Aviso: creación de tablas falló:", e)
 

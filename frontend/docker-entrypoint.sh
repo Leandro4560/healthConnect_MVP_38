@@ -12,13 +12,17 @@ escaped=$(printf '%s' "$BACKEND_URL" | sed 's/"/\\"/g')
 cat > /usr/share/nginx/html/env.js <<EOF
 // Este archivo es generado en tiempo de ejecución. No lo edites manualmente.
 ;(function(){
+	// En producción dejamos API_ROOT vacío para que el frontend use rutas relativas
+	// (p.ej. /api/v1/...) y Nginx en el frontend haga proxy a BACKEND_URL evitando CORS.
 	var backend = "${escaped}" || "";
-	window.__API_ROOT__ = backend;
+	// Forzamos llamadas relativas para que el proxy funcione
+	window.__API_ROOT__ = "";
+	// Exponemos la URL del backend usada por el proxy solo para info/debug
+	window.__BACKEND_PROXY__ = backend;
 	if (!backend) {
-		// Warning visible en la consola del navegador para facilitar debugging en despliegues.
-		console.warn("[env.js] BACKEND_URL no está configurado. El frontend hará peticiones al mismo origen (esto normalmente provoca 404).\n\nPor favor configura la variable de entorno BACKEND_URL en tu servicio frontend en Render con la URL pública de tu backend, por ejemplo:\nBACKEND_URL=https://mi-backend.onrender.com\n");
+		console.warn("[env.js] BACKEND_URL no está configurado. El frontend usará rutas relativas y no habrá proxy configurado. Configura BACKEND_URL en Render para que nginx reenvíe /api/* al backend.");
 	} else {
-		console.info("[env.js] BACKEND_URL configurado: ", backend);
+		console.info("[env.js] BACKEND proxy configurado para: ", backend);
 	}
 })();
 EOF

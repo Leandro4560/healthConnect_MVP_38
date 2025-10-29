@@ -1,6 +1,8 @@
 server {
   listen 80;
   server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
 
   # Proxy API requests to backend (BACKEND_URL must include scheme and host, e.g. https://api.example.com)
   location /api/ {
@@ -24,6 +26,11 @@ server {
   # Serve static files and fallback to index.html for SPA
   location / {
     try_files $uri $uri/ /index.html;
+  }
+
+  # Prevent internal redirect loops: serve index.html directly when requested
+  location = /index.html {
+    try_files /index.html =404;
   }
 
   # Optional: serve env.js directly (already in /usr/share/nginx/html)

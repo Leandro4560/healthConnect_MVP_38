@@ -1,29 +1,18 @@
 # Stage 1: Build la aplicación
-FROM node:22-alpine as builder
+FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package.json .
-COPY package-lock.json .
-
-# Instala dependencias y variables de entorno de React/Vite
-# VITE_APP_API_URL se inyectará aquí desde Render
-RUN npm install
-
-# Copia el resto del código fuente (incluyendo src/)
-COPY . .
-
-# Ejecuta el comando de construcción (crea la carpeta 'dist')
-# --no-tty es una buena práctica en contenedores
-RUN npm run build --no-tty
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
 # ----------------------------------------------------
 
 # Stage 2: Servir la aplicación con Nginx
 FROM nginx:stable-alpine
-# Copia los archivos estáticos desde el Stage 1
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Opcional: Copia tu archivo de configuración de Nginx si tienes uno
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
-
+# copia archivo nginx.conf si necesitas rewrite/spa fallback
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,6 +1,11 @@
 import axios from "axios";
 
-export const API_ROOT = (import.meta.env.VITE_API_URL || "").replace(/\/$/, '') || window.__API_ROOT__ || "";
+// Aceptar VITE_API_URL (preferido) y VITE_APP_API_URL (si lo configuraste por error)
+export const API_ROOT = (
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_APP_API_URL || // fallback para la variable que aparece en tu panel
+  ""
+).replace(/\/$/, '') || window.__API_ROOT__ || "";
 
 export const API_URL = (API_ROOT ? API_ROOT.replace(/\/$/, '') : window.location.origin.replace(/\/$/, '')) + "/api/v1";
 

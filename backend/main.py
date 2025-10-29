@@ -20,8 +20,13 @@ try:
     logger.info(f"DATABASE_URL used: {settings.DATABASE_URL}")
     # Si es sqlite con ruta relativa, mostramos la ruta absoluta para aclarar
     if settings.DATABASE_URL.startswith("sqlite"):
-        path = settings.DATABASE_URL.replace("sqlite://", "")
-        abs_path = os.path.abspath(path)
+        rel_path = settings.DATABASE_URL.replace("sqlite://", "")
+        # Resolver la ruta relativa respecto al paquete backend (evita depender del CWD)
+        base_dir = os.path.dirname(__file__)  # /workspaces/.../backend
+        if os.path.isabs(rel_path) and rel_path != "":
+            abs_path = os.path.abspath(rel_path)
+        else:
+            abs_path = os.path.abspath(os.path.join(base_dir, rel_path or "."))
         logger.info(f"Resolved SQLite file path: {abs_path}")
 except Exception:
     logger.exception("Error al obtener DATABASE_URL para logging")

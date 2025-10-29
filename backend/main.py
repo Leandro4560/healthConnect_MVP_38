@@ -14,7 +14,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Crear tablas si no existen (solo en dev; en producción usa Alembic)
-#Base.metadata.create_all(bind=engine)
+if os.environ.get("CREATE_TABLES","0") == "1":
+    try:
+        logger.info("CREATE_TABLES=1 -> creando tablas en la base de datos...")
+        Base.metadata.create_all(bind=engine)
+        logger.info("Tablas creadas correctamente.")
+    except Exception:
+        logger.exception("Error creando tablas con create_all")
 logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
 try:
     logger.info(f"DATABASE_URL used: {settings.DATABASE_URL}")

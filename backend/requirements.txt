@@ -13,3 +13,4 @@ httpx
 pytz
 supabase
 python-multipart
+gunicorn

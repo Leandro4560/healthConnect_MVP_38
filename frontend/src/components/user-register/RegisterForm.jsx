@@ -4,6 +4,7 @@ import { MdOutlineEmail } from "react-icons/md";
 import { MdOutlineVisibilityOff } from "react-icons/md";
 import { MdOutlineVisibility } from "react-icons/md";
 import useValidationsFormRegister, { isInstitutionalEmail } from "../../hooks/useValidationsFormRegister";
+import ImgGoggle from "../../assets/google.svg";
 import { userAuth } from "../../context/Authcontext";
 import { useNavigate } from "react-router-dom";
 
@@ -23,8 +24,8 @@ const RegisterForm = () => {
   const [licenseError, setLicenseError] = useState(null);
 
   const { errors, handleOnBlur } = useValidationsFormRegister();
+  const { signInWithGoogle, register } = userAuth();
   const [emptyValidInputs, setEmptyValidInputs] = useState(false);
-  const { register } = userAuth();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [registerError, setRegisterError] = useState(null);
@@ -267,6 +268,19 @@ const RegisterForm = () => {
         </button>
         {registerError ? <p className={styleInputError}>{registerError}</p> : null}
       </form>
+      <hr className="w-2xs my-3 md:w-[480px]" />
+
+      <div className="h-32 flex flex-col justify-evenly items-center ">
+        <button
+          className="w-64 h-10 flex justify-evenly items-center  bg-white tracking-wide rounded-lg"
+          onClick={() => signInWithGoogle()}>
+          <img src={ImgGoggle} alt="logo-google" className="w-6" />
+          Continúa con Google
+        </button>
+        {formRegister.role === 'doctor' && (
+          <p className="text-yellow-200 text-xs mt-1">Nota: si te registras con Google y eres doctor, deberás completar tu número de licencia en tu perfil o contactar al admin para la verificación.</p>
+        )}
+      </div>
     </div>
   );
 };

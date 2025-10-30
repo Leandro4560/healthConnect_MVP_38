@@ -3,7 +3,7 @@ import { FaRegUser } from "react-icons/fa";
 import { MdOutlineEmail } from "react-icons/md";
 import { MdOutlineVisibilityOff } from "react-icons/md";
 import { MdOutlineVisibility } from "react-icons/md";
-import { useValidationsFormRegister } from "../../hooks/useValidationsFormRegister";
+import useValidationsFormRegister, { isInstitutionalEmail } from "../../hooks/useValidationsFormRegister";
 import { userAuth } from "../../context/Authcontext";
 import { useNavigate } from "react-router-dom";
 
@@ -19,6 +19,8 @@ const RegisterForm = () => {
   const [formRegister, setFormRegister] = useState(initialForm);
   const [visibilityInput, setVisibilityInput] = useState(false);
   const [visibilityInputConfirm, setVisibilityInputConfirm] = useState(false);
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [licenseError, setLicenseError] = useState(null);
 
   const { errors, handleOnBlur } = useValidationsFormRegister();
   const [emptyValidInputs, setEmptyValidInputs] = useState(false);
@@ -43,6 +45,12 @@ const RegisterForm = () => {
     });
   };
 
+  const handleLicenseChange = (e) => {
+    setLicenseNumber(e.target.value);
+    if (e.target.value.trim().length === 0) setLicenseError("Número de licencia requerido");
+    else setLicenseError(null);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -61,6 +69,19 @@ const RegisterForm = () => {
 
     setEmptyValidInputs(false);
 
+    // si el rol es doctor, validar email institucional y licencia
+    if (formRegister.role === "doctor") {
+      const okEmail = isInstitutionalEmail(formRegister.email);
+      if (!okEmail) {
+        setRegisterError("Para registrar como doctor use un correo institucional (ej: correo de hospital o clínica). Si no tiene, contacte al administrador.");
+        return;
+      }
+      if (!licenseNumber || licenseNumber.trim().length === 0) {
+        setLicenseError("Número de licencia requerido para doctores");
+        return;
+      }
+    }
+
     if (hasNoErrors) {
       (async () => {
         try {
@@ -71,6 +92,8 @@ const RegisterForm = () => {
             name: formRegister.name,
             password: formRegister.password,
             role: formRegister.role || "patient",
+            // campo opcional para backend: numero de licencia si es doctor
+            ...(formRegister.role === "doctor" ? { license_number: licenseNumber } : {}),
           };
           await register(payload);
           // Después de registrar, redirigir al landing (login)
@@ -137,6 +160,19 @@ const RegisterForm = () => {
             <p className="text-yellow-200 text-xs mt-1">Sugerencia: si eres doctor usa tu correo @doctorhospital (si corresponde).</p>
           ) : null}
         </div>
+        {formRegister.role === "doctor" && (
+          <label className="w-64 mt-3 relative">
+            <input
+              type="text"
+              name="license_number"
+              placeholder="Número de licencia (ej: COL-123456)"
+              value={licenseNumber}
+              onChange={handleLicenseChange}
+              className={styleInput}
+            />
+            {licenseError ? <p className="text-yellow-200 text-xs mt-1">{licenseError}</p> : <p className="text-yellow-200 text-xs mt-1">Proporciona tu número de colegiatura para verificación.</p>}
+          </label>
+        )}
         {errors.minName ? (
           <p className={styleInputError}>{errors.messageMinName}</p>
         ) : (
@@ -160,6 +196,10 @@ const RegisterForm = () => {
           />
           <MdOutlineEmail className="size-5 absolute bottom-1/4 right-3" />
         </label>
+
+        {formRegister.role === "doctor" && formRegister.email && !isInstitutionalEmail(formRegister.email) ? (
+          <p className="text-yellow-200 text-xs mt-1">Advertencia: el correo no parece institucional. Se recomienda usar un correo de hospital/clinica o un dominio .org/.edu.</p>
+        ) : null}
 
         {errors.validEmail ? (
           <p className={styleInputError}>{errors.messageValidEmail}</p>

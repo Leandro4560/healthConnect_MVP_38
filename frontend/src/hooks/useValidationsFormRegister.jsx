@@ -1,5 +1,25 @@
 import { useState } from "react";
 
+// Validador utilitario para comprobar si un email pertenece a dominios institucionales
+export const isInstitutionalEmail = (email, allowedDomains = []) => {
+  if (!email) return false;
+  const e = String(email).trim().toLowerCase();
+  if (!e.includes("@")) return false;
+  // Si se proveen dominios permitidos, chequearlos exactamente
+  if (allowedDomains.length > 0) {
+    return allowedDomains.some((d) => e.endsWith(`@${d.toLowerCase()}`));
+  }
+
+  // Si no se proveen dominios, aplicar heurística: permitir emails institucionales
+  // heurística: dominios que contienen 'hospital' o 'clinic' o terminan en .org/.edu/.gov
+  const domain = e.split("@")[1] || "";
+  if (domain.includes("hospital") || domain.includes("clinic") || domain.endsWith(".org") || domain.endsWith(".edu") || domain.endsWith(".gov")) {
+    return true;
+  }
+  // Por defecto, considerar no institucional
+  return false;
+};
+
 export const useValidationsFormRegister = () => {
   const [valuePassword, setValuePassword] = useState("");
   const [errors, setErrors] = useState(
@@ -113,3 +133,5 @@ export const useValidationsFormRegister = () => {
   };
   return { errors, handleOnBlur };
 };
+
+export default useValidationsFormRegister;

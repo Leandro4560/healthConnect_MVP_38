@@ -55,6 +55,13 @@ const DashboardDoctor = () => {
         </div>
       </header>
 
+      {/* Banner de verificación para doctores */}
+      {user?.role === 'doctor' && (user?.is_verified !== true && user?.verified !== true && user?.status !== 'active') && (
+        <div className="mt-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded">
+          <strong>Cuenta pendiente de verificación:</strong> Tu cuenta aparece sin verificar. Para completar el proceso, sube tu documento de colegiatura o contacta al administrador con tu número de licencia. Mientras tanto, algunas funciones pueden estar limitadas.
+        </div>
+      )}
+
       <section className="mt-6">
         <h3 className="text-lg font-medium mb-3">Citas asignadas</h3>
         {loading && <p>Cargando...</p>}

@@ -1,5 +1,9 @@
 server {
   listen 80;
+  # extended access log to include upstream status and times for debugging
+  log_format main_ext '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" $request_time $upstream_response_time $upstream_status';
   server_name _;
   root /usr/share/nginx/html;
   index index.html;
@@ -44,5 +48,5 @@ server {
   }
 
   error_log /var/log/nginx/error.log info;
-  access_log /var/log/nginx/access.log;
+  access_log /var/log/nginx/access.log main_ext;
 }

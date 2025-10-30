@@ -1,5 +1,5 @@
 # app/routes/ruta.py
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Request
 from typing import Optional
 from fastapi.responses import RedirectResponse
 import urllib.parse
@@ -252,11 +252,20 @@ def refresh_access_token(refresh_data: dict, db: Session = Depends(get_db)):
 # Endpoint: registrar usuario
 # ----------------------------
 @router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), request: Request = None):
     """
     Registra un usuario localmente y (si está configurado) lo crea en Supabase.
     - user_in: espera el schema UserCreate (email, name, password, role, ...)
     """
+    # Log basic request info to help debug 429 / rate-limit issues
+    try:
+        client_host = request.client.host if request is not None else "unknown"
+        user_agent = request.headers.get("user-agent") if request is not None else None
+        logger.info(f"register_user called from {client_host}; UA={user_agent}")
+    except Exception:
+        # avoid breaking the endpoint if logging fails
+        pass
+
     # 1) verificar si ya existe
     existing = user_crud.get_user_by_email(db, user_in.email)
     if existing:

@@ -7,7 +7,7 @@ import { userAuth } from "../../context/Authcontext";
 import ImgGoggle from "../../assets/google.svg";
 import { Link } from "react-router-dom";
 
-const LoginForm = () => {
+const LoginForm = ({ onShowRegister }) => {
   const { signInWithGoogle, login } = userAuth();
   const initialForm = {
     email: "",

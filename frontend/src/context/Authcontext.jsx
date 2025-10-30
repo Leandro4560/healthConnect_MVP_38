@@ -102,6 +102,11 @@ export const AuthContextProvider = ({ children }) => {
         body: JSON.stringify(userData),
       });
       if (!res.ok) {
+        if (res.status === 429) {
+          // Intento de rate limit — devolver mensaje amigable
+          const retry = res.headers.get("Retry-After");
+          throw new Error(retry ? `Demasiadas solicitudes. Intenta nuevamente en ${retry} segundos.` : "Demasiadas solicitudes. Intenta nuevamente en unos segundos.");
+        }
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || "Error registrando usuario");
       }
@@ -192,7 +197,7 @@ export const AuthContextProvider = ({ children }) => {
   function signOut() {
     clearAll();
     setUser(null);
-    navigate("/login", { replace: true });
+    navigate("/", { replace: true });
   }
 
   useEffect(() => {

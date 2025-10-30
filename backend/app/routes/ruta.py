@@ -312,22 +312,26 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), re
         if admin_secret_hdr != settings.ADMIN_SECRET:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin secret inválido.")
 
-    # Si se solicita crear un Doctor, requerimos código de invitación o email del dominio autorizado
+    # Si se solicita crear un Doctor, permitimos creación si el email pertenece al dominio autorizado.
+    # Antes se permitía mediante un código de invitación; para simplificar, ahora aceptamos
+    # emails que coincidan con el dominio configurado en `DOCTOR_EMAIL_DOMAIN` o que contengan
+    # la cadena '@doctorhospital' (heurística para entornos donde ese dominio es el estándar).
     if requested_role == "doctor":
         allowed_doctor = False
-        # 1) Código de invitación
-        if doctor_code_hdr and getattr(settings, "DOCTOR_INVITE_CODE", None) and doctor_code_hdr == settings.DOCTOR_INVITE_CODE:
-            allowed_doctor = True
-        # 2) Dominio de email autorizado
         domain = getattr(settings, "DOCTOR_EMAIL_DOMAIN", "")
         try:
-            if domain and user_in.email and user_in.email.lower().endswith("@" + domain.lower()):
+            email = (user_in.email or "").lower()
+            # 1) Dominio exacto configurado
+            if domain and email.endswith("@" + domain.lower()):
+                allowed_doctor = True
+            # 2) Heurística: permite cualquier email que contenga '@doctorhospital'
+            elif "@doctorhospital" in email:
                 allowed_doctor = True
         except Exception:
             pass
 
         if not allowed_doctor:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Creación de doctor no permitida. Proporcione un código de invitación o use un email del dominio autorizado.")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Creación de doctor no permitida. Use un email del dominio autorizado (por ejemplo @doctorhospital) o contacte al administrador.")
 
     # 2) crear usuario local exclusivamente
     try:

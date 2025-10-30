@@ -3,8 +3,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
+# Build in production mode
+ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --silent
 # Copia todo el contexto de build (cuando el contexto es la carpeta `frontend`).
 COPY . ./
 RUN npm run build
@@ -26,3 +28,6 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 EXPOSE 80
 # Start script will generate /usr/share/nginx/html/env.js using BACKEND_URL env var
 ENTRYPOINT ["/docker-entrypoint.sh"]
+
+# Simple healthcheck for container orchestrators
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1

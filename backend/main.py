@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from sqlalchemy import inspect
 import logging
 
 from app.database import engine
@@ -13,7 +14,9 @@ from app.routes import ruta, citas
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Crear tablas si no existen (solo en dev; en producción usa Alembic)
+# Crear tablas si no existen (solo en dev o cuando se usa SQLite). En producción
+# preferimos usar alembic. Para evitar el error "no such table" en despliegues
+# con SQLite (ephemeral FS en Render), comprobamos y creamos las tablas si faltan.
 if os.environ.get("CREATE_TABLES","0") == "1":
     try:
         logger.info("CREATE_TABLES=1 -> creando tablas en la base de datos...")
@@ -21,6 +24,18 @@ if os.environ.get("CREATE_TABLES","0") == "1":
         logger.info("Tablas creadas correctamente.")
     except Exception:
         logger.exception("Error creando tablas con create_all")
+else:
+    # Si no se pidió explicitamente crear tablas, y la DB es SQLite, intentar
+    # detectarlas y crearlas automáticamente si faltan (comodín para Render).
+    try:
+        inspector = inspect(engine)
+        existing = inspector.get_table_names()
+        if 'users' not in existing:
+            logger.info("No se encontró tabla 'users' en DB -> creando tablas automáticamente (sqlite fallback)")
+            Base.metadata.create_all(bind=engine)
+            logger.info("Tablas creadas correctamente (fallback).")
+    except Exception:
+        logger.exception("Error comprobando/creando tablas en startup")
 logger.info("Conexión exitosa a la base de datos. Tablas creadas/verificadas.")
 try:
     logger.info(f"DATABASE_URL used: {settings.DATABASE_URL}")

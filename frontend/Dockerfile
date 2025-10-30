@@ -3,8 +3,6 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
-# Build in production mode
-ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --silent
 # Copia todo el contexto de build (cuando el contexto es la carpeta `frontend`).

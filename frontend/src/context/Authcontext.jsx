@@ -94,11 +94,17 @@ export const AuthContextProvider = ({ children }) => {
     }
   };
 
-  async function register(userData) {
+  async function register(userData, options = {}) {
     try {
-  const res = await fetch(`${API_URL}/auth/register`, {
+    const headers = { "Content-Type": "application/json" };
+    // enviar código de doctor si se provee (x-doctor-code)
+    if (options && options.doctorCode) {
+      headers['x-doctor-code'] = options.doctorCode;
+    }
+
+    const res = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(userData),
       });
       if (!res.ok) {

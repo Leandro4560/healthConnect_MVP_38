@@ -22,6 +22,7 @@ const RegisterForm = () => {
   const [visibilityInputConfirm, setVisibilityInputConfirm] = useState(false);
   const [licenseNumber, setLicenseNumber] = useState("");
   const [licenseError, setLicenseError] = useState(null);
+  const [inviteCode, setInviteCode] = useState("");
 
   const { errors, handleOnBlur } = useValidationsFormRegister();
   const { signInWithGoogle, register } = userAuth();
@@ -50,6 +51,10 @@ const RegisterForm = () => {
     setLicenseNumber(e.target.value);
     if (e.target.value.trim().length === 0) setLicenseError("Número de licencia requerido");
     else setLicenseError(null);
+  };
+
+  const handleInviteChange = (e) => {
+    setInviteCode(e.target.value);
   };
 
   const handleSubmit = (e) => {
@@ -96,7 +101,10 @@ const RegisterForm = () => {
             // campo opcional para backend: numero de licencia si es doctor
             ...(formRegister.role === "doctor" ? { license_number: licenseNumber } : {}),
           };
-          await register(payload);
+            // enviar opcionalmente el código de invitación si se proporcionó
+            const options = {};
+            if (inviteCode && inviteCode.trim().length > 0) options.doctorCode = inviteCode.trim();
+            await register(payload, options);
           // Después de registrar, redirigir al landing (login)
           navigate("/", { replace: true });
         } catch (err) {
@@ -172,6 +180,19 @@ const RegisterForm = () => {
               className={styleInput}
             />
             {licenseError ? <p className="text-yellow-200 text-xs mt-1">{licenseError}</p> : <p className="text-yellow-200 text-xs mt-1">Proporciona tu número de colegiatura para verificación.</p>}
+          </label>
+        )}
+        {formRegister.role === "doctor" && (
+          <label className="w-64 mt-2 relative">
+            <input
+              type="text"
+              name="invite_code"
+              placeholder="Código de invitación (opcional)"
+              value={inviteCode}
+              onChange={handleInviteChange}
+              className={styleInput}
+            />
+            <p className="text-yellow-200 text-xs mt-1">Si tienes un código de invitación pégalo aquí (opcional).</p>
           </label>
         )}
         {errors.minName ? (

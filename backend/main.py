@@ -62,6 +62,8 @@ app = FastAPI(title="No Country - API de Gestion Medica", version="1.0.0", lifes
 
 # CORS y routers (mantén lo que ya tenías)
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 # ** CORRECCIÓN DE CORS: Definir explícitamente el origen del Frontend **
 # Si no se especifica FRONTEND_ORIGINS en el entorno, por compatibilidad
@@ -84,6 +86,39 @@ app.add_middleware(
   allow_methods=["*"],
   allow_headers=["*"],
 )
+
+
+# Middleware para loggear cada request/response (útil para determinar si el 429
+# proviene de la aplicación o de un proxy/infra externa). Logea host, método,
+# path y el status code de la respuesta (y el header Retry-After si existe).
+class RequestResponseLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        try:
+            client = request.client.host if request.client is not None else "unknown"
+        except Exception:
+            client = "unknown"
+        try:
+            # Limitar la cantidad de headers a logear para evitar llenar logs
+            headers = {k: (v if k.lower() in ("user-agent","referer","host") else "(redacted)") for k,v in request.headers.items()}
+        except Exception:
+            headers = {}
+        logger.info(f"[RQ] {client} -> {request.method} {request.url.path} headers={headers}")
+        try:
+            response: Response = await call_next(request)
+        except Exception as e:
+            # Si ocurre excepción, la registramos y volvemos a lanzar para preservarla
+            logger.exception(f"Exception while handling request {request.method} {request.url.path}: {e}")
+            raise
+        try:
+            ra = response.headers.get("Retry-After")
+            logger.info(f"[RS] {client} <- {request.method} {request.url.path} status={response.status_code} Retry-After={ra}")
+        except Exception:
+            logger.info(f"[RS] {client} <- {request.method} {request.url.path} status={response.status_code}")
+        return response
+
+
+# Añadir la middleware de logging lo antes posible (después de CORS)
+app.add_middleware(RequestResponseLoggingMiddleware)
 
 # Incluir routers con los prefijos que espera el frontend
 app.include_router(ruta.router, prefix="/api/v1/auth", tags=["Autenticación"])

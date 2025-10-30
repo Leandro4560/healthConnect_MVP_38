@@ -64,14 +64,40 @@ const AppointmentForm = ({ token, onCreated }) => {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      setError(null);
+      // validar campos básicos en cliente para evitar 422
+      const errs = {};
+      if (!doctorId) errs.doctorId = "Seleccione un doctor válido";
+      if (!startTime) errs.startTime = "Fecha/hora de inicio requerida";
+      if (!endTime) errs.endTime = "Fecha/hora de fin requerida";
+      let startIso = null;
+      let endIso = null;
+      if (startTime) {
+        const s = new Date(startTime);
+        if (isNaN(s.getTime())) errs.startTime = "Formato de fecha inválido";
+        else startIso = s.toISOString();
+      }
+      if (endTime) {
+        const eDate = new Date(endTime);
+        if (isNaN(eDate.getTime())) errs.endTime = "Formato de fecha inválido";
+        else endIso = eDate.toISOString();
+      }
+      if (startIso && endIso && new Date(startIso) >= new Date(endIso)) {
+        errs.range = "La fecha de fin debe ser posterior al inicio";
+      }
+      setFormErrors(errs);
+      if (Object.keys(errs).length > 0) return;
+
+      setLoading(true);
       const payload = {
         doctor_id: Number(doctorId),
-        start_time: startTime,
-        end_time: endTime,
+        start_time: startIso,
+        end_time: endIso,
         is_virtual: Boolean(isVirtual),
         description,
       };
@@ -81,35 +107,52 @@ const AppointmentForm = ({ token, onCreated }) => {
         body: JSON.stringify(payload),
       });
       onCreated(created);
+      // limpiar form
+      setDescription("");
+      setStartTime("");
+      setEndTime("");
     } catch (err) {
       console.error("error creating appointment", err);
+      setError(err.response?.detail || err.message || "Error creando cita");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 max-w-md">
-      <label>
-        Doctor ID:
-        <input value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="ml-2" />
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 max-w-md bg-white p-4 rounded shadow-sm">
+      <label className="flex flex-col">
+        <span className="text-sm font-medium">Doctor ID</span>
+        <input value={doctorId} onChange={(e) => setDoctorId(e.target.value)} className="mt-1 p-2 border rounded" />
+        {formErrors.doctorId && <small className="text-red-500">{formErrors.doctorId}</small>}
       </label>
-      <label>
-        Fecha/Hora (ISO):
-        <input value={startTime} onChange={(e) => setStartTime(e.target.value)} className="ml-2" />
+
+      <label className="flex flex-col">
+        <span className="text-sm font-medium">Fecha / Hora inicio</span>
+        <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="mt-1 p-2 border rounded" />
+        {formErrors.startTime && <small className="text-red-500">{formErrors.startTime}</small>}
       </label>
-      <label>
-        Fin (ISO):
-        <input value={endTime} onChange={(e) => setEndTime(e.target.value)} className="ml-2" />
+
+      <label className="flex flex-col">
+        <span className="text-sm font-medium">Fecha / Hora fin</span>
+        <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="mt-1 p-2 border rounded" />
+        {formErrors.endTime && <small className="text-red-500">{formErrors.endTime}</small>}
       </label>
+
+      {formErrors.range && <p className="text-red-500">{formErrors.range}</p>}
+
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={isVirtual} onChange={(e) => setIsVirtual(e.target.checked)} />
         <span>¿Cita virtual (Google Meet)?</span>
       </label>
-      <label>
-        Descripción:
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="ml-2 w-full" />
+
+      <label className="flex flex-col">
+        <span className="text-sm font-medium">Descripción (opcional)</span>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 p-2 border rounded w-full" />
       </label>
+
       {error && <p className="text-red-500">{error}</p>}
-      <button disabled={loading} className="px-3 py-1 bg-blue-600 text-white rounded">
+      <button disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
         {loading ? "Creando..." : "Agendar cita"}
       </button>
     </form>

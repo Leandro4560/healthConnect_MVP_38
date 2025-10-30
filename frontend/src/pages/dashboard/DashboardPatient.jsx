@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { userAuth } from "../../context/Authcontext";
 import { API_URL, apiFetch } from "../../lib/api";
+import { FiVideo, FiUser, FiCalendar } from "react-icons/fi";
 
 const DashboardPatient = () => {
   const { user } = userAuth();
@@ -20,28 +21,43 @@ const DashboardPatient = () => {
   }, [token]);
 
   return (
-    <div className="p-4">
-      <h2 className="text-2xl mb-4">Panel Paciente</h2>
-      <p>Hola {user.full_name || user.name || user.email}</p>
+    <div className="p-6">
+      <header className="flex items-center justify-between bg-gradient-to-r from-emerald-500 to-sky-500 text-white p-4 rounded-lg shadow-md">
+        <div>
+          <h2 className="text-2xl font-semibold">Panel Paciente</h2>
+          <p className="text-sm opacity-90">Hola {user.full_name || user.name || user.email}</p>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded">
+            <FiUser /> <span className="text-sm">{appointments.length} citas</span>
+          </div>
+          <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded">
+            <FiCalendar /> <span className="text-sm">Próximas: {appointments.filter(a=>a.status!=='cancelled').length}</span>
+          </div>
+        </div>
+      </header>
 
       <section className="mt-6">
-        <h3 className="text-xl">Tus citas próximas</h3>
+        <h3 className="text-lg font-medium mb-3">Tus citas próximas</h3>
         {loading && <p>Cargando...</p>}
         {error && <p className="text-red-500">{error}</p>}
-        <ul>
+        <ul className="flex flex-col gap-3">
           {appointments.length === 0 && !loading ? (
-            <li>No tienes citas próximas.</li>
+            <li className="p-4 bg-white rounded shadow-sm">No tienes citas próximas.</li>
           ) : (
             appointments.map((a) => (
-              <li key={a.id} className="py-2 border-b">
-                <div>Doctor: {a.doctor?.full_name || a.doctor?.name || a.doctor?.email}</div>
-                <div>Inicio: {a.start_time}</div>
-                <div>Estado: {a.status}</div>
-                {a.video_url && (
-                  <div>
-                    Enlace Meet: <a href={a.video_url} target="_blank" rel="noopener noreferrer" className="text-blue-600">Entrar a la reunión</a>
-                  </div>
-                )}
+              <li key={a.id} className="p-4 bg-white rounded shadow-sm flex justify-between items-start">
+                <div>
+                  <div className="text-sm text-slate-600">Doctor</div>
+                  <div className="font-medium">{a.doctor?.full_name || a.doctor?.name || a.doctor?.email}</div>
+                  <div className="text-sm text-slate-600 mt-2">Inicio: <span className="font-medium">{a.start_time ? new Date(a.start_time).toLocaleString() : '-'}</span></div>
+                </div>
+                <div className="flex flex-col items-end gap-3">
+                  <StatusBadge status={a.status} />
+                  {a.video_url && (
+                    <a href={a.video_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-sky-600 text-white rounded text-sm">Entrar</a>
+                  )}
+                </div>
               </li>
             ))
           )}
@@ -49,7 +65,7 @@ const DashboardPatient = () => {
       </section>
 
       <section className="mt-6">
-        <h3 className="text-xl">Agendar nueva cita</h3>
+        <h3 className="text-lg font-medium mb-3">Agendar nueva cita</h3>
         <AppointmentForm token={token} onCreated={(c) => setAppointments((s) => [c, ...s])} />
       </section>
     </div>
@@ -160,3 +176,14 @@ const AppointmentForm = ({ token, onCreated }) => {
 };
 
 export default DashboardPatient;
+
+const StatusBadge = ({ status }) => {
+  const s = (status || '').toLowerCase();
+  if (s === 'confirmed' || s === 'accepted' || s === 'active')
+    return <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm">{status}</span>;
+  if (s === 'pending' || s === 'waiting')
+    return <span className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-sm">{status}</span>;
+  if (s === 'cancelled' || s === 'canceled')
+    return <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm">{status}</span>;
+  return <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-sm">{status || 'desconocido'}</span>;
+};

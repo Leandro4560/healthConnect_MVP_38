@@ -274,10 +274,11 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), re
     # Normalizar roles (misma lógica)
     role_val = getattr(user_in, "role", None)
     if role_val:
+        # Mapear valores recibidos a los valores del Enum UserRole (ej.: 'Patient','Doctor','Admin')
         role_map = {
-            "PACIENTE": "PATIENT", "PACIENT": "PATIENT", "PATIENT": "PATIENT", "PATIENTE": "PATIENT",
-            "DOCTOR": "DOCTOR", "MEDICO": "DOCTOR",
-            "ADMIN": "ADMIN", "ADMINISTRADOR": "ADMIN", "ADMINISTRACION": "ADMIN",
+            "PACIENTE": "Patient", "PACIENT": "Patient", "PATIENT": "Patient", "PATIENTE": "Patient",
+            "DOCTOR": "Doctor", "MEDICO": "Doctor",
+            "ADMIN": "Admin", "ADMINISTRADOR": "Admin", "ADMINISTRACION": "Admin",
         }
         try:
             mapped = role_map.get(str(role_val).upper(), None)
@@ -287,7 +288,13 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), re
             pass
 
     # 2) crear usuario local exclusivamente
-    db_user = user_crud.create_user(db, user_in)
+    try:
+        db_user = user_crud.create_user(db, user_in)
+    except Exception as e:
+        # Loguear la excepción completa para facilitar el debug en entornos remotos (Render)
+        logger.exception("Error creando usuario en create_user")
+        # Exponer un mensaje de error controlado al cliente (evitar filtrar secretos)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     # generar refresh token para el usuario creado y almacenarlo
     try:

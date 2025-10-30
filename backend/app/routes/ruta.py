@@ -287,6 +287,48 @@ def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), re
         except Exception:
             pass
 
+    # Verificar políticas de creación para roles sensibles (Admin/Doctor)
+    # Leemos secretos/códigos desde cabeceras para no exponerlos en el body
+    admin_secret_hdr = None
+    doctor_code_hdr = None
+    try:
+        admin_secret_hdr = request.headers.get("x-admin-secret") or request.headers.get("admin-secret") if request is not None else None
+        doctor_code_hdr = request.headers.get("x-doctor-code") or request.headers.get("doctor-code") if request is not None else None
+    except Exception:
+        admin_secret_hdr = None
+        doctor_code_hdr = None
+
+    # Si se solicita crear un Admin, requiere la secret en settings
+    try:
+        requested_role = str(getattr(user_in, "role", "")).lower()
+    except Exception:
+        requested_role = ""
+
+    if requested_role == "admin" or requested_role == "adminstrator":
+        # ADMIN_SECRET debe estar configurado en settings para permitir creación de admin
+        if not getattr(settings, "ADMIN_SECRET", None):
+            logger.warning("Intento de crear Admin pero ADMIN_SECRET no está configurado en settings.")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Creación de admin no permitida.")
+        if admin_secret_hdr != settings.ADMIN_SECRET:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin secret inválido.")
+
+    # Si se solicita crear un Doctor, requerimos código de invitación o email del dominio autorizado
+    if requested_role == "doctor":
+        allowed_doctor = False
+        # 1) Código de invitación
+        if doctor_code_hdr and getattr(settings, "DOCTOR_INVITE_CODE", None) and doctor_code_hdr == settings.DOCTOR_INVITE_CODE:
+            allowed_doctor = True
+        # 2) Dominio de email autorizado
+        domain = getattr(settings, "DOCTOR_EMAIL_DOMAIN", "")
+        try:
+            if domain and user_in.email and user_in.email.lower().endswith("@" + domain.lower()):
+                allowed_doctor = True
+        except Exception:
+            pass
+
+        if not allowed_doctor:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Creación de doctor no permitida. Proporcione un código de invitación o use un email del dominio autorizado.")
+
     # 2) crear usuario local exclusivamente
     try:
         db_user = user_crud.create_user(db, user_in)

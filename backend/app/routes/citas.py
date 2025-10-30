@@ -15,6 +15,10 @@ from app.excepciones import GoogleCalendarError, BusinessException
 from app.crud import appointment_crud 
 from app.crud.user_crud import get_user_by_id
 
+# Logging local
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter(
     tags=["Citas Médicas"],
     # Todas las rutas requieren autenticación
@@ -38,8 +42,24 @@ def create_appointment(
             detail="Solo los pacientes pueden agendar citas."
         )
 
-    created = appointment_crud.create_appointment(db=db, appointment_data=appointment_data, patient=current_user)
-    return created
+    # Loguear el payload entrante para facilitar el diagnóstico de 422/400 enviados desde el cliente
+    try:
+        logger = logging.getLogger(__name__)
+        try:
+            logger.info("create_appointment called by user_id=%s payload=%s", getattr(current_user, 'id', None), appointment_data.model_dump())
+        except Exception:
+            logger.info("create_appointment called by user_id=%s (payload unavailable)", getattr(current_user, 'id', None))
+    except Exception:
+        pass
+
+    try:
+        created = appointment_crud.create_appointment(db=db, appointment_data=appointment_data, patient=current_user)
+        return created
+    except BusinessException as be:
+        # Re-lanzar como HTTPException para que FastAPI devuelva el status correcto, pero primero logueamos
+        logger = logging.getLogger(__name__)
+        logger.warning("BusinessException creando cita: %s", getattr(be, 'detail', str(be)))
+        raise HTTPException(status_code=be.status_code, detail=be.detail)
 
 @router.get("/doctor", response_model=List[datos.AppointmentResponse], dependencies=[Depends(requires_doctor)])
 def get_appointments_for_doctor(

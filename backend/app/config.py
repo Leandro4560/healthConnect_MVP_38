@@ -51,5 +51,14 @@ class Settings(BaseSettings):
     GOOGLE_SCOPES: list[str] = GOOGLE_CALENDAR_SCOPES
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    
+    # Seguridad y políticas de registro
+    # ADMIN_SECRET: si está definido, crear usuarios con role=Admin requerirá este secreto enviado
+    # en una cabecera HTTP segura (p.ej. X-Admin-Secret) al endpoint de registro.
+    ADMIN_SECRET: str = Field(default=os.getenv("ADMIN_SECRET", ""))
+    # DOCTOR_INVITE_CODE: código de invitación simple para permitir creación de doctores
+    DOCTOR_INVITE_CODE: str = Field(default=os.getenv("DOCTOR_INVITE_CODE", ""))
+    # DOCTOR_EMAIL_DOMAIN: dominio autorizado para crear doctores automáticamente (ej: doctorhospital.com)
+    DOCTOR_EMAIL_DOMAIN: str = Field(default=os.getenv("DOCTOR_EMAIL_DOMAIN", ""))
 
 settings = Settings()

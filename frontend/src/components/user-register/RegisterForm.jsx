@@ -20,8 +20,7 @@ const RegisterForm = () => {
   const [formRegister, setFormRegister] = useState(initialForm);
   const [visibilityInput, setVisibilityInput] = useState(false);
   const [visibilityInputConfirm, setVisibilityInputConfirm] = useState(false);
-  const [licenseNumber, setLicenseNumber] = useState("");
-  const [licenseError, setLicenseError] = useState(null);
+  // Ya no requerimos license_number en registro de doctor por política actual
   const [inviteCode, setInviteCode] = useState("");
 
   const { errors, handleOnBlur } = useValidationsFormRegister();
@@ -47,15 +46,7 @@ const RegisterForm = () => {
     });
   };
 
-  const handleLicenseChange = (e) => {
-    setLicenseNumber(e.target.value);
-    if (e.target.value.trim().length === 0) setLicenseError("Número de licencia requerido");
-    else setLicenseError(null);
-  };
-
-  const handleInviteChange = (e) => {
-    setInviteCode(e.target.value);
-  };
+  // manejadores de campo removidos (no se exige licencia ni código de invitación en el formulario)
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -75,15 +66,11 @@ const RegisterForm = () => {
 
     setEmptyValidInputs(false);
 
-    // si el rol es doctor, validar email institucional y licencia
+    // si el rol es doctor, validar que el email parezca institucional
     if (formRegister.role === "doctor") {
       const okEmail = isInstitutionalEmail(formRegister.email);
       if (!okEmail) {
-        setRegisterError("Para registrar como doctor use un correo institucional (ej: correo de hospital o clínica). Si no tiene, contacte al administrador.");
-        return;
-      }
-      if (!licenseNumber || licenseNumber.trim().length === 0) {
-        setLicenseError("Número de licencia requerido para doctores");
+        setRegisterError("Para registrar como doctor use un correo institucional (ej: correo de hospital o clínica con @doctorhospital). Si no tiene, contacte al administrador.");
         return;
       }
     }
@@ -98,13 +85,9 @@ const RegisterForm = () => {
             name: formRegister.name,
             password: formRegister.password,
             role: formRegister.role || "patient",
-            // campo opcional para backend: numero de licencia si es doctor
-            ...(formRegister.role === "doctor" ? { license_number: licenseNumber } : {}),
           };
-            // enviar opcionalmente el código de invitación si se proporcionó
-            const options = {};
-            if (inviteCode && inviteCode.trim().length > 0) options.doctorCode = inviteCode.trim();
-            await register(payload, options);
+          // No enviamos ni license_number ni invite code; backend acepta doctores por dominio @doctorhospital.
+          await register(payload);
           // Después de registrar, redirigir al landing (login)
           navigate("/", { replace: true });
         } catch (err) {

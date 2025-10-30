@@ -18,7 +18,10 @@ const Home = () => {
   return (
     <div>
       <h1 className="text-2xl">Bienvenido: {user.full_name || user.name || user.email}</h1>
-      <button onClick={signOut}>Cerrar sesión</button>
+      <div style={{ marginTop: 12 }}>
+        <button onClick={() => navigate('/dashboard')}>Ir al dashboard</button>
+        <button style={{ marginLeft: 8 }} onClick={signOut}>Cerrar sesión</button>
+      </div>
     </div>
   );
 };

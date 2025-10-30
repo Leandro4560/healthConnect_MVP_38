@@ -72,8 +72,8 @@ const RegisterForm = () => {
             role: "patient",
           };
           await register(payload);
-          // Después de registrar, redirigir al login
-          navigate("/login", { replace: true });
+          // Después de registrar, redirigir al landing (login)
+          navigate("/", { replace: true });
         } catch (err) {
           setRegisterError(err.message || "Error al registrarse");
         } finally {

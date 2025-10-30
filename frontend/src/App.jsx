@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./App.css";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
 import AuthSuccess from "./pages/AuthSuccess";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleRoute from "./components/RoleRoute";
@@ -15,18 +14,9 @@ function App() {
       <BrowserRouter>
         <AuthContextProvider>
           <Routes>
+            {/* Minimal routes: landing/login (/) and protected /dashboard */}
+            <Route exact path="/" element={<Login />} />
             <Route exact path="/auth/success" element={<AuthSuccess />} />
-            <Route exact path="/login" element={<Login />} />
-            <Route exact path="/register" element={<Register />} />
-            <Route
-              exact
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Home />
-                </ProtectedRoute>
-              }
-            />
             <Route
               exact
               path="/dashboard"

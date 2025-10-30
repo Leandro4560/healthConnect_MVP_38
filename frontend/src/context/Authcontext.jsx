@@ -136,8 +136,8 @@ export const AuthContextProvider = ({ children }) => {
       saveToken(token);
       saveRefresh(refresh);
       scheduleRefresh(token);
-      setUser(data.user || null);
-      navigate("/", { replace: true });
+  setUser(data.user || null);
+  navigate("/dashboard", { replace: true });
       return data;
     } catch (error) {
       console.error("login error", error);
@@ -177,8 +177,8 @@ export const AuthContextProvider = ({ children }) => {
         saveRefresh(token.refresh_token);
         scheduleRefresh(token.access_token);
       }
-      const data = await fetchMe();
-      if (data) navigate("/", { replace: true });
+  const data = await fetchMe();
+  if (data) navigate("/dashboard", { replace: true });
     } catch (e) {
       console.error("setTokenFromString error", e);
     }

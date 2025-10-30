@@ -144,7 +144,7 @@ const LoginForm = () => {
 
       <hr className="w-2xs my-3 md:w-[480px]  " />
 
-      <div className="h-32 flex flex-col justify-evenly items-center ">
+        <div className="h-32 flex flex-col justify-evenly items-center ">
         <button
           className="w-64 h-10 flex justify-evenly items-center  bg-white tracking-wide rounded-lg"
           onClick={signInWithGoogle}>
@@ -153,9 +153,11 @@ const LoginForm = () => {
         </button>
         <p className="">¿No tienes cuenta?</p>
 
-        <Link to="/register" className="font-bold  text-primary-400">
+        <button
+          onClick={() => onShowRegister && onShowRegister()}
+          className="font-bold text-primary-400 bg-transparent border-none">
           Registrate aqui
-        </Link>
+        </button>
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ const RegisterForm = () => {
     email: "",
     password: "",
     confirmPassword: "",
+    role: "patient",
   };
 
   const [formRegister, setFormRegister] = useState(initialForm);
@@ -69,7 +70,7 @@ const RegisterForm = () => {
             email: formRegister.email,
             name: formRegister.name,
             password: formRegister.password,
-            role: "patient",
+            role: formRegister.role || "patient",
           };
           await register(payload);
           // Después de registrar, redirigir al landing (login)
@@ -101,10 +102,12 @@ const RegisterForm = () => {
     "w-64 rounded-lg text-center p-0.5 font-medium text-red-500 bg-red-100/80 tracking-wide";
 
   return (
-    <div className=" flex flex-col justify-evenly items-center ">
+    <div className="flex flex-col justify-evenly items-center">
       <form
-        className="w-72 h-[368px]  flex flex-col justify-around items-center  rounded-2xl bg-primary-600"
+        className="w-80 p-6 flex flex-col justify-around items-center rounded-2xl bg-primary-600 shadow-lg"
         onSubmit={handleSubmit}>
+        <h3 className="text-white text-xl font-semibold mb-2">Crea tu cuenta</h3>
+        <p className="text-white/80 text-sm mb-4">Selecciona tu tipo de usuario</p>
         <label className="w-64 relative">
           <input
             type="text"
@@ -117,6 +120,23 @@ const RegisterForm = () => {
           />
           <FaRegUser className="size-5 absolute bottom-1/4 right-3" />
         </label>
+        <div className="w-64 mt-1 mb-2">
+          <label className="text-sm text-white/90">Rol</label>
+          <select
+            name="role"
+            value={formRegister.role}
+            onChange={(e) =>
+              setFormRegister({ ...formRegister, role: e.target.value })
+            }
+            className="w-64 h-10 bg-white rounded-lg pl-2 text-lg mt-1">
+            <option value="patient">Paciente</option>
+            <option value="doctor">Doctor</option>
+            {/* Admin no expuesto en el formulario público para evitar creación accidental. */}
+          </select>
+          {formRegister.role === "doctor" && formRegister.email && !formRegister.email.includes("@doctorhospital") ? (
+            <p className="text-yellow-200 text-xs mt-1">Sugerencia: si eres doctor usa tu correo @doctorhospital (si corresponde).</p>
+          ) : null}
+        </div>
         {errors.minName ? (
           <p className={styleInputError}>{errors.messageMinName}</p>
         ) : (
@@ -202,8 +222,8 @@ const RegisterForm = () => {
         <button
           type="submit"
           disabled={submitting}
-          className="w-64 h-10 text-lg tracking-wide bg-primary-300 text-white rounded-lg duration-500 ease-out hover:bg-primary-200 hover:text-primary-700 disabled:opacity-50">
-          {submitting ? "Registrando..." : "Registrate"}
+          className="w-64 h-10 text-lg tracking-wide bg-gradient-to-r from-green-400 to-blue-500 text-white rounded-lg duration-500 ease-out hover:from-green-500 hover:to-blue-600 disabled:opacity-50">
+          {submitting ? "Registrando..." : "Regístrate"}
         </button>
         {registerError ? <p className={styleInputError}>{registerError}</p> : null}
       </form>
